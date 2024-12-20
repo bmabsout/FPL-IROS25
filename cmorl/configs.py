@@ -50,6 +50,7 @@ env_configs: dict[str, Config] = {
             ac_kwargs={
                 "obs_normalizer": [1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 4.0, 4.0, 2.0, 2.0, 2.0],
             },
+            steps_per_epoch=2000,
             gamma = 0.9,
             polyak = 0.9,
             replay_size = 10000,
@@ -65,7 +66,7 @@ env_configs: dict[str, Config] = {
     ),
     "Ant-v4": Config(
         reward_fns.mujoco_CMORL(num_actions=8, speed_multiplier=0.5),
-        HyperParams(env_args={"use_contact_forces": True}, epochs=100, act_noise=0.05),
+        HyperParams(env_args={"use_contact_forces": True}, epochs=100, act_noise=0.05, steps_per_epoch=2000),
     ),
     "Hopper-v4": Config(
         reward_fns.mujoco_CMORL(num_actions=3, speed_multiplier=0.4),
@@ -77,6 +78,7 @@ env_configs: dict[str, Config] = {
                 "actor_hidden_sizes": [32,32],
             },
             epochs=20,
+            steps_per_epoch=2000,
             p_objectives=-1.0,
             act_noise = 0.1,
             threshold=1.5,
@@ -94,6 +96,7 @@ env_configs: dict[str, Config] = {
                 "actor_hidden_sizes": [32,32],
             },
             epochs=20,
+            steps_per_epoch=2000,
             p_objectives=0.0,
             before_clip = 0.1,
             act_noise = 0.02,
@@ -109,6 +112,7 @@ env_configs: dict[str, Config] = {
                 "critic_hidden_sizes": [400, 300],
                 "actor_hidden_sizes": [32, 32],
             },
+            steps_per_epoch=2000,
             # pi_lr=3e-4,
             # threshold = 0.5
         ),
@@ -121,7 +125,8 @@ env_configs: dict[str, Config] = {
                 "critic_hidden_sizes": [128, 128],
                 "actor_hidden_sizes": [16, 16],
             },
-            epochs=10,
+            epochs=250,
+            steps_per_epoch=2000,
             pi_lr=3e-3,
             q_lr=3e-3,
             act_noise=0.1,
@@ -139,7 +144,9 @@ env_configs: dict[str, Config] = {
                 "critic_hidden_sizes": [400, 300],
                 "actor_hidden_sizes": [32, 32],
             },
-            epochs=30,
+            epochs=250,
+            steps_per_epoch=2000,
+            
             p_objectives=-1.0,
             act_noise=0.05,
             # pi_lr=1e-3,
