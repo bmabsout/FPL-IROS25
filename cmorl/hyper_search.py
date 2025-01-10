@@ -12,7 +12,7 @@ def parse_hypersearch_args(args=None):
         "--hyperseed", type=int, default=1, help="seed for random number generator"
     )
     parser.add_argument(
-        "--num_searches", type=int, default=10, help="number of random searches to perform"
+        "--num_searches", type=int, default=1, help="number of random searches to perform"
     )
 
     parser.add_argument(
