@@ -10,5 +10,5 @@ environments = [
 ]
 
 for env in environments:
-    cmd = f"python -m cmorl.hyper_search {env} --experiment_name {env}_AQS --steps_per_epoch 4000 --epochs 4 --start_steps 1000 --num_seeds 5"
+    cmd = f"python -m cmorl.hyper_search {env} --experiment_name {env}_AQS --steps_per_epoch 2000 --epochs 2 --start_steps 1000 --num_seeds 1"
     os.system(cmd)
