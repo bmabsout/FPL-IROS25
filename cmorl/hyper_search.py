@@ -54,9 +54,8 @@ def random_args_generator(hyperseed, num_searches, num_seeds):
             # "--replay_size", str(int(10**np_random.uniform(4, 6))),
             # "--polyak", str(1.0 - 10**np_random.uniform(-3, -1)),
         ]
-        # for seed in range(num_seeds):
-        seed = 2
-        yield (random_hypers + ["--seed", str(seed)])
+        for seed in range(num_seeds):
+            yield (random_hypers + ["--seed", str(seed)])
 
 
 def run_training(env_name, args):
