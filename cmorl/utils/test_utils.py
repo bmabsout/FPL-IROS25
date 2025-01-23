@@ -37,6 +37,12 @@ def test(actor, critic, env, seed=123, render=True, force_truncate_at=None, cmor
         o = o2
         if render:
             env.render()
+            # print(f"action: {action}")
+            # print(f"o: {o}")
+            # print(f"r: {r}")
+            if cmorl:
+                qs, q_c = cmorl.q_composer([cmorl_r])
+                print(f"cmorl_qs: {(q_c.numpy(), qs.numpy())}")
     actions = np.array(actions)
     rs = np.array(rs)
     os = np.array(os)

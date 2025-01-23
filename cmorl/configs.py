@@ -68,7 +68,7 @@ env_configs: dict[str, Config] = {
         HyperParams(env_args={"use_contact_forces": True}, epochs=100, act_noise=0.05),
     ),
     "Hopper-v4": Config(
-        reward_fns.mujoco_CMORL(num_actions=3, speed_multiplier=0.4),
+        reward_fns.mujoco_CMORL(num_actions=3, speed_multiplier=0.5),
         # None,
         HyperParams(
             ac_kwargs = {
@@ -78,10 +78,14 @@ env_configs: dict[str, Config] = {
             },
             epochs=20,
             p_objectives=-1.0,
-            act_noise = 0.1,
+            act_noise = 0.07,
             threshold=1.5,
+            qd_power=0.75,
+            # pi_lr=3e-4,
+            # q_lr=3e-4,
             polyak=0.9,
-            replay_size=30000,
+            start_steps=2000,
+            # replay_size=5000,
         ),
     ),
     "Walker2d-v4": Config(
@@ -104,11 +108,12 @@ env_configs: dict[str, Config] = {
         # reward_fns.mujoco_CMORL(num_actions=6, speed_multiplier=0.25),
         reward_fns.halfcheetah_CMORL(),
 
-        HyperParams(epochs=200, act_noise=0.05, p_objectives=0.5,
+        HyperParams(epochs=200, act_noise=0.05, p_objectives=-1.0,
             ac_kwargs={
                 "critic_hidden_sizes": [400, 300],
                 "actor_hidden_sizes": [32, 32],
             },
+            qd_power=1.0,
             # pi_lr=3e-4,
             # threshold = 0.5
         ),
@@ -118,14 +123,15 @@ env_configs: dict[str, Config] = {
         # None,
         HyperParams(
             ac_kwargs = {
-                "critic_hidden_sizes": [128, 128],
-                "actor_hidden_sizes": [16, 16],
+                "critic_hidden_sizes": [400, 300],
+                "actor_hidden_sizes": [32, 32],
             },
             epochs=10,
             pi_lr=3e-3,
             q_lr=3e-3,
-            act_noise=0.1,
-            p_objectives=-4.0,
+            # act_noise=0.1,
+            before_clip=0.1,
+            p_objectives=0.0,
         )
     ),
     "Pendulum-custom": Config(
