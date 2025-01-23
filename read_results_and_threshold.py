@@ -5,13 +5,15 @@ import numpy as np
 import argparse
 
 # Create an ArgumentParser object
-parser = argparse.ArgumentParser(description='Read results and calculate steps before threshold.')
+parser = argparse.ArgumentParser(
+    description="Read results and calculate steps before threshold."
+)
 
 # Add a command line argument for the threshold
-parser.add_argument('-t', '--threshold', type=float, help='Threshold value')
+parser.add_argument("-t", "--threshold", type=float, help="Threshold value")
 
 # Add a command line argument for the results file
-parser.add_argument('-r', '--results-file', type=str, help='Path to the results file')
+parser.add_argument("-r", "--results-file", type=str, help="Path to the results file")
 
 # Parse the command line arguments
 args = parser.parse_args()
@@ -33,12 +35,16 @@ for seed, epoch_to_results in seed_to_epoch_to_results.items():
     for epoch, value in sorted(epoch_to_results.items()):
         seed_to_results_list[seed].append(value)
 
+
 def results_list_to_steps(rl):
     rsums = np.array([float(result["rsums"][0]) for result in rl])
     print(rsums)
     return (np.argmax(rsums >= args.threshold) + 1) * 2000
 
-seed_to_steps_before_threshold = {seed: results_list_to_steps(rl) for seed, rl in seed_to_results_list.items()}
+
+seed_to_steps_before_threshold = {
+    seed: results_list_to_steps(rl) for seed, rl in seed_to_results_list.items()
+}
 
 for seed, steps_before_threshold in seed_to_steps_before_threshold.items():
     print("seed:", seed, "steps:", steps_before_threshold)
