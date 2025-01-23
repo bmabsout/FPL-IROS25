@@ -145,7 +145,7 @@ def ddpg(
 
     weights_and_biases = wandb.init(
         # set the wandb project where this run will be logged
-        project=env_name,
+        project=f"AQS_{env_name}",
         # track hyperparameters and run metadata
         entity="cmorl",
         config=hp.__dict__,
