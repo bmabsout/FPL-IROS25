@@ -24,7 +24,7 @@ def save_hypers(experiment_name, cmd_args, serializer:Arg_Serializer):
 
 
 def latest_subdir(path='.'):
-    return max(Path(path).glob('*/'), key=os.path.getctime)
+    return max(Path(path).glob('*/'), key=os.path.getmtime)
 
 
 def get_last_epoch_path_for_each_seed_folder(path):
@@ -46,7 +46,7 @@ def find_all_train_paths(path):
 
 
 def latest_train_folder(path):
-    return max(find_all_train_paths(path), key=os.path.getctime, default=None)
+    return max(find_all_train_paths(path), key=os.path.getmtime, default=None)
 
 
 def concatenate_lists(list_of_lists):
