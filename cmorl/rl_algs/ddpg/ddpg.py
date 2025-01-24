@@ -262,13 +262,13 @@ def ddpg(
             outputs = q_and_before_clip(tf.concat([obs1, acts], axis=-1))
             q, before_clip = outputs["q"], outputs["before_clip"]
 
-            keep_in_range = p_mean(
-                move_towards_range(before_clip, -1.0, 1.0), p=1.0
+            keep_in_range = tf.reduce_mean(
+                move_towards_range(before_clip, -1.0, 1.0)
             )
             td0_error = tf.abs(q - backup)
             estimated_tdinf_error = tf.abs(q - estimated_values)
-            q_bellman_c = p_mean(p_mean(td0_error, p=2.0, axis=0), p=1.0)
-            q_direct_c = p_mean(p_mean(estimated_tdinf_error, p=2.0, axis=0), p=1.0)
+            q_bellman_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(td0_error**2.0, axis=0)))
+            q_direct_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(estimated_tdinf_error**2.0, axis=0)))
 
             q_loss = q_bellman_c + q_direct_c * hp.qd_power - keep_in_range
 
