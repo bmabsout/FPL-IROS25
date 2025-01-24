@@ -29,7 +29,7 @@ def mujoco_CMORL(num_actions, speed_multiplier=1.0):
         # q_c = then(forward, action, slack=0.5) 
         # q_c = forward
         q_c = p_mean([speed, action], p=p_objectives)
-        return tf.stack([speed, action]), q_c
+        return tf.stack([speed, action]), q_c**0.5
     return CMORL(partial(mujoco_multi_dim_reward_joints_x_velocity, speed_multiplier=speed_multiplier), mujoco_composer)
 
 def halfcheetah_CMORL():
