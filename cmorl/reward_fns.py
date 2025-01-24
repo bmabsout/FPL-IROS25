@@ -29,7 +29,7 @@ def mujoco_CMORL(num_actions, speed_multiplier=1.0):
         # q_c = then(forward, action, slack=0.5) 
         # q_c = forward
         q_c = p_mean([speed, action], p=p_objectives)
-        return tf.stack([speed, action]), q_c**0.5
+        return tf.stack([speed, action]), q_c
     return CMORL(partial(mujoco_multi_dim_reward_joints_x_velocity, speed_multiplier=speed_multiplier), mujoco_composer)
 
 def halfcheetah_CMORL():
@@ -86,19 +86,19 @@ def composed_reward_fn(transition, env):
     return reward
 
 def multi_dim_reacher(transition: Transition, env: ReacherEnv) -> np.ndarray:
-    reward_performance = 1.0 - np.clip(np.abs(transition.next_state[-3:-1])/0.4, 0.0, 1.0)
-    reward_actuation = np.clip(1 - transition.action**2.0, 0.0, 1.0)
+    reward_performance = 1.0 - np.clip(np.sum((transition.next_state[-3:-1]/0.2)**2.0), 0.0, 1.0)
+    reward_actuation = np.clip((1 - (transition.action/0.4)**2.0), 0.0, 1.0)
     # print(transition.next_state[-3:-1])
     # print("rw:", reward_performance)
-    rw_vec = np.concatenate([reward_performance, reward_actuation], dtype=np.float32)
+    rw_vec = np.concatenate([[reward_performance], reward_actuation], dtype=np.float32)
     return rw_vec
 
 @tf.function
 def reacher_composer(q_values, p_batch=0, p_objectives=-1.0):
     qs_c = p_mean(q_values, p=p_batch, axis=0)
-    reach = p_mean(qs_c[:2], p=0.0) 
-    smoothness = p_mean(qs_c[2:], p=0.0)
-    q_c = p_mean([reach**2.0, smoothness], p=p_objectives)
+    reach = qs_c[0] 
+    smoothness = p_mean(qs_c[1:], p=0.0)
+    q_c = p_mean([reach, smoothness], p=p_objectives)
     return qs_c, q_c
 
 reacher_cmorl = CMORL(

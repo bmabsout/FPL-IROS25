@@ -71,7 +71,7 @@ def linear_time_schedule(t, total_steps, perf):
     return 1-t/total_steps
 
 def perf_schedule(t, total_steps, perf):
-    return 1.0-perf
+    return 1.0-perf**0.5
 
 class CMORL:
     def __init__(self, reward_fn: RewardFnType, q_composer: Callable = default_q_composer, shape: int | None = None, randomization_schedule = perf_schedule):

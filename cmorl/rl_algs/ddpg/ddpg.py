@@ -370,9 +370,12 @@ def ddpg(
 
     def ddpg_update():
         q_c = wandb.run.summary.get("Q-composed")
-        learning_rate_reducer = (1.0 - q_c) if q_c else 1.0
-        pi_optimizer.learning_rate.assign(hp.pi_lr)
-        q_optimizer.learning_rate.assign(hp.q_lr)
+        if q_c is None:
+            q_c = 0.0
+        learning_rate_reducer = cmorl.randomization_schedule(t, total_steps, q_c if q_c else 0.0)
+        # learning_rate_reducer = (1.0 - q_c) if q_c else 1.0
+        pi_optimizer.learning_rate.assign(learning_rate_reducer * hp.pi_lr)
+        q_optimizer.learning_rate.assign(learning_rate_reducer * hp.q_lr)
         for train_step in range(hp.train_steps):
             batch = replay_buffer.sample_batch(hp.batch_size, np_random=np_random)
             obs1 = tf.constant(batch["obs1"])
