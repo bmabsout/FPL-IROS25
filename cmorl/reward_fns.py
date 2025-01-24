@@ -41,19 +41,20 @@ def halfcheetah_CMORL():
         x_velocities = (env.data.xpos - env.prev_xpos) / env.dt # type: ignore
         env.prev_xpos = np.copy(env.data.xpos) # type: ignore
         speed = x_velocities[1:, 0]
-        slow = np.clip(speed, 0.0, 1.0)
-        fast = np.mean(np.clip(speed*0.2, 0.0, 1.0))
+        slow = p_mean(np.clip(speed, 0.0, 1.0),0.0)**0.5
+        fast = p_mean(np.clip(speed*0.2, 0.0, 1.0), 0.0)
         return np.hstack([slow, fast, action])
 
     @tf.function
     def composer(q_values, p_batch=0, p_objectives=-4.0):
         qs_c = p_mean(q_values, p=p_batch, axis=0)
-        slow = p_mean(qs_c[0:7], p=-1.0)
-        fast = qs_c[7]
-        action = p_mean(qs_c[-num_actions:], p=0.0)
+        slow = qs_c[0]
+        fast = qs_c[1]
+        action = p_mean(qs_c[-num_actions:], p=-1.0)
         # q_c = then(forward, action, slack=0.5) 
         # q_c = forward
-        q_c = curriculum([action, slow, fast], slack=0.5, p=p_objectives)
+        # q_c = curriculum([action, slow, fast], slack=0.3, p=p_objectives)
+        q_c = then(slow, p_mean([action**0.5, fast], p=p_objectives))
         return tf.stack([action, slow, fast]), q_c
     return CMORL(reward, composer)
 

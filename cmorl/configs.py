@@ -117,6 +117,7 @@ env_configs: dict[str, Config] = {
                 "actor_hidden_sizes": [32, 32],
             },
             qd_power=1.0,
+            before_clip=0.1,
             steps_per_epoch=2000,
             # pi_lr=3e-4,
             # threshold = 0.5

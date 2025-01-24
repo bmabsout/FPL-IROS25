@@ -241,8 +241,8 @@ def ddpg(
             keep_in_range = p_mean(
                 move_towards_range(before_clip, -1.0, 1.0), p=1.0
             )
-            td0_error = (q - backup)
-            estimated_tdinf_error = (q - estimated_values)
+            td0_error = tf.abs(q - backup)
+            estimated_tdinf_error = tf.abs(q - estimated_values)
             q_bellman_c = p_mean(p_mean(td0_error, p=2.0, axis=0), p=1.0)
             q_direct_c = p_mean(p_mean(estimated_tdinf_error,p=2.0, axis=0), p=1.0)
 
