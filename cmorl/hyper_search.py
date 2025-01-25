@@ -80,6 +80,6 @@ if __name__ == "__main__":
     ]
 
     # Create a pool of worker processes
-    with mp.Pool(processes=10) as pool:
+    with mp.Pool(processes=20) as pool:
         # Map the run_training function to the process arguments
         pool.starmap(run_training, process_args)
