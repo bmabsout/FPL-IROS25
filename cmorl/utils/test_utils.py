@@ -5,6 +5,13 @@ from cmorl.rl_algs.ddpg.ddpg import add_noise_to_weights
 from cmorl.utils import save_utils
 import numpy as np
 import tensorflow as tf
+from multiprocess import Queue, Value
+import signal
+import os
+from functools import partial
+import time
+from datetime import datetime, timedelta
+import threading
 
 from cmorl.utils.reward_utils import (
     CMORL,
@@ -26,6 +33,7 @@ def test(
     cmorl=None,
     max_ep_len=None,
     gamma=0.99,
+    debug=False,
 ):
     if force_truncate_at is not None:
         env = ForcedTimeLimit(env, max_episode_steps=force_truncate_at)
@@ -48,7 +56,7 @@ def test(
             cmorl_r = cmorl(transition, env)
             cmorl_rs.append(cmorl_r)
         if d or t or max_ep_len == len(os):
-            print(f"ep_len: {len(os)}", "done" if d else "truncated")
+            # print(f"ep_len: {len(os)}", "done" if d else "truncated")
             break
         o = o2
         if render:
@@ -56,7 +64,7 @@ def test(
             # print(f"action: {action}")
             # print(f"o: {o}")
             # print(f"r: {r}")
-            if cmorl:
+            if cmorl and debug:
                 qs, q_c = cmorl.q_composer([cmorl_r])
                 print(f"cmorl_qs: {(np.asarray(q_c), np.asarray(qs))}")
     actions = np.array(actions)
@@ -66,17 +74,18 @@ def test(
     qs = np.array(critic(os, actions))
     np.set_printoptions(precision=2)
     rsum = np.sum(rs)
-    print(f"reward: {rsum:.2f}, cmorl: {np.sum(cmorl_rs, axis=0)}")
+    # print(f"reward: {rsum:.2f}, cmorl: {np.sum(cmorl_rs, axis=0)}")
     estimated_value = estimated_value_fn(cmorl_rs, gamma, done=d)
     # print(f"estimated value:", estimated_value)
     vals = values(cmorl_rs, gamma, done=d)
     offness = np.mean(np.abs(qs - vals), axis=0)
-    vals_and_errors = " ".join(
-        [f"{val:.2f}+{error:.2f}" for val, error in zip(estimated_value, offness)]
-    )
-    print("vals+err:", vals_and_errors)
-    qs_c, q_c = cmorl.q_composer(vals)
-    print("q_c:", np.asarray(q_c).round(2), "qs_c:", np.asarray(qs_c).round(2))
+    if debug:
+        vals_and_errors = " ".join(
+            [f"{val:.2f}+{error:.2f}" for val, error in zip(estimated_value, offness)]
+        )
+        print("vals+err:", vals_and_errors)
+        qs_c, q_c = cmorl.q_composer(vals)
+        print("q_c:", np.asarray(q_c).round(2), "qs_c:", np.asarray(qs_c).round(2))
     # print("first:", qs[0], np.sum(discounted_window(rs, gamma, done=d,axis=0)))
     # print("last:", qs[-1])
     # print("max:", np.max(qs, axis=0))
@@ -93,6 +102,7 @@ def folder_to_results(
     cmorl=None,
     max_ep_len=None,
     act_noise=0.0,
+    debug=False,
     **kwargs,
 ):
     saved_actor = save_utils.load_actor(folder_path)
@@ -116,9 +126,11 @@ def folder_to_results(
             force_truncate_at=force_truncate_at,
             cmorl=cmorl,
             max_ep_len=max_ep_len,
+            debug=debug
         )
         for i in range(num_tests)
     ]
+
     return runs
 
 
@@ -162,15 +174,130 @@ def folder_groups_from_globs(*globs: str):
     return folder_groups
 
 
-def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=None):
-    group_results = {}
+# def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=None):
+#     group_results = {}
 
-    def run_folder_group(folder_group_name, folders):
-        print("using folder group:", folder_group_name)
-        run_stats = run_tests(
-            env, cmd_args, folders=folders, cmorl=cmorl, max_ep_len=max_ep_len
-        )
-        return folder_group_name, run_stats
+#     def run_folder_group(folder_group_name, folders):
+#         print("using folder group:", folder_group_name)
+#         run_stats = run_tests(
+#             env, cmd_args, folders=folders, cmorl=cmorl, max_ep_len=max_ep_len
+#         )
+#         return folder_group_name, run_stats
+
+#     if cmd_args.render:
+#         results = [
+#             run_folder_group(folder_group_name, folders)
+#             for folder_group_name, folders in folder_groups.items()
+#         ]
+#     else:
+#         with mp.Pool(processes=30) as pool:
+#             results = pool.starmap(run_folder_group, folder_groups.items())
+
+#     group_results = {
+#         folder_group_name: run_stats for folder_group_name, run_stats in results
+#     }
+#     return group_results
+
+
+import multiprocess as mp
+import os
+import sys
+import time
+from datetime import datetime
+from typing import Dict, List, Tuple, Any
+
+
+class ProcessManager:
+    def __init__(self, max_workers: int = None):
+        self.max_workers = max_workers or min(30, mp.cpu_count())  # Reduced from 40
+        self.counter = mp.Value("i", 0)
+        self.result_queue = mp.Queue()
+
+    def _worker_process(
+        self,
+        task_id: int,
+        func: callable,
+        args: tuple,
+        counter: mp.Value,
+        result_queue: mp.Queue,
+    ):
+        import resource
+
+        # Increase file descriptor limit for this process
+        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, 4096))
+
+        try:
+            result = func(*args)
+            with counter.get_lock():
+                counter.value += 1
+            result_queue.put((task_id, result))
+        except Exception as e:
+            print(f"Error in task {task_id}: {str(e)}")
+            result_queue.put((task_id, None))
+        finally:
+            result_queue.put(("DONE", task_id))
+
+    def _display_progress(self, total: int):
+        sys.stdout.write(f"\rProgress: {self.counter.value}/{total} tasks completed")
+        sys.stdout.flush()
+
+    def run_parallel(self, func: callable, items: List[Tuple]) -> List[Any]:
+        total_tasks = len(items)
+        max_concurrent = min(self.max_workers, 30)  # Further limit concurrent processes
+        results = {}
+        completed_tasks = set()
+
+        # Process tasks in batches
+        for batch_start in range(0, total_tasks, max_concurrent):
+            batch_end = min(batch_start + max_concurrent, total_tasks)
+            batch_items = items[batch_start:batch_end]
+            processes = []
+
+            # Start batch processes
+            for i, args in enumerate(batch_items, start=batch_start):
+                if not isinstance(args, tuple):
+                    args = (args,)
+                p = mp.Process(
+                    target=self._worker_process,
+                    args=(i, func, args, self.counter, self.result_queue),
+                )
+                p.start()
+                processes.append(p)
+
+            # Collect results for this batch
+            while len(completed_tasks & set(range(batch_start, batch_end))) < len(
+                batch_items
+            ):
+                msg_type, data = self.result_queue.get()
+                if msg_type == "DONE":
+                    completed_tasks.add(data)
+                else:
+                    task_id, result = msg_type, data
+                    results[task_id] = result
+                self._display_progress(total_tasks)
+
+            # Clean up batch processes
+            for p in processes:
+                p.join()
+                p.close()
+
+        print("\nCompleted all tasks!")
+        return [results.get(i) for i in range(total_tasks)]
+
+
+def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=None):
+    def run_folder_group(
+        folder_group_name: str, folders: List[str]
+    ) -> Tuple[str, Dict]:
+        print(f"\nTesting group: {folder_group_name}")
+        try:
+            run_stats = run_tests(
+                env, cmd_args, folders=folders, cmorl=cmorl, max_ep_len=max_ep_len
+            )
+            return (folder_group_name, run_stats)
+        except Exception as e:
+            print(f"Error in group {folder_group_name}: {str(e)}")
+            return None
 
     if cmd_args.render:
         results = [
@@ -178,10 +305,11 @@ def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=
             for folder_group_name, folders in folder_groups.items()
         ]
     else:
-        with mp.Pool(processes=10) as pool:
-            results = pool.starmap(run_folder_group, folder_groups.items())
+        process_mgr = ProcessManager()
+        results = process_mgr.run_parallel(
+            run_folder_group,
+            [(name, folders) for name, folders in folder_groups.items()],
+        )
+        results = [r for r in results if r is not None]
 
-    group_results = {
-        folder_group_name: run_stats for folder_group_name, run_stats in results
-    }
-    return group_results
+    return dict(results)

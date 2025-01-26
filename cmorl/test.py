@@ -24,6 +24,9 @@ def parse_args(args=None):
     parser.add_argument(
         "-s", "--store", type=str, default=None, help="store the results in a file"
     )
+    parser.add_argument(
+        "-d", "--debug", action="store_true", help="print debug info while testing"
+    )
     return parser.parse_args(args)
 
 
