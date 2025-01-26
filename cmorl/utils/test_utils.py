@@ -205,7 +205,7 @@ from typing import Dict, List, Tuple, Any
 
 class ProcessManager:
     def __init__(self, max_workers: int = None):
-        self.max_workers = max_workers or min(40, mp.cpu_count())
+        self.max_workers = max_workers or min(30, mp.cpu_count())  # Reduced from 40
         self.counter = mp.Value("i", 0)
         self.result_queue = mp.Queue()
 
@@ -217,65 +217,65 @@ class ProcessManager:
         counter: mp.Value,
         result_queue: mp.Queue,
     ):
+        import resource
+
+        # Increase file descriptor limit for this process
+        resource.setrlimit(resource.RLIMIT_NOFILE, (4096, 4096))
+
         try:
             result = func(*args)
             with counter.get_lock():
                 counter.value += 1
             result_queue.put((task_id, result))
         except Exception as e:
-            result_queue.put((task_id, None))
             print(f"Error in task {task_id}: {str(e)}")
+            result_queue.put((task_id, None))
         finally:
             result_queue.put(("DONE", task_id))
 
     def _display_progress(self, total: int):
-        sys.stdout.write(
-            f"\n\n\rProgress: {self.counter.value}/{total} tasks completed\n\n"
-        )
+        sys.stdout.write(f"\rProgress: {self.counter.value}/{total} tasks completed")
         sys.stdout.flush()
 
     def run_parallel(self, func: callable, items: List[Tuple]) -> List[Any]:
         total_tasks = len(items)
+        max_concurrent = min(self.max_workers, 30)  # Further limit concurrent processes
         results = {}
         completed_tasks = set()
 
-        processes = []
-        for i, args in enumerate(items):
-            if not isinstance(args, tuple):
-                args = (args,)
-            p = mp.Process(
-                target=self._worker_process,
-                args=(i, func, args, self.counter, self.result_queue),
-            )
-            processes.append(p)
+        # Process tasks in batches
+        for batch_start in range(0, total_tasks, max_concurrent):
+            batch_end = min(batch_start + max_concurrent, total_tasks)
+            batch_items = items[batch_start:batch_end]
+            processes = []
 
-        # Start initial batch of processes
-        active_processes = processes[: self.max_workers]
-        next_process_idx = self.max_workers
+            # Start batch processes
+            for i, args in enumerate(batch_items, start=batch_start):
+                if not isinstance(args, tuple):
+                    args = (args,)
+                p = mp.Process(
+                    target=self._worker_process,
+                    args=(i, func, args, self.counter, self.result_queue),
+                )
+                p.start()
+                processes.append(p)
 
-        for p in active_processes:
-            p.start()
+            # Collect results for this batch
+            while len(completed_tasks & set(range(batch_start, batch_end))) < len(
+                batch_items
+            ):
+                msg_type, data = self.result_queue.get()
+                if msg_type == "DONE":
+                    completed_tasks.add(data)
+                else:
+                    task_id, result = msg_type, data
+                    results[task_id] = result
+                self._display_progress(total_tasks)
 
-        while len(completed_tasks) < total_tasks:
-            msg_type, data = self.result_queue.get()
-
-            if msg_type == "DONE":
-                task_id = data
-                completed_tasks.add(task_id)
-
-                # Start next process if any remaining
-                if next_process_idx < len(processes):
-                    processes[next_process_idx].start()
-                    next_process_idx += 1
-            else:
-                task_id, result = msg_type, data
-                results[task_id] = result
-
-            self._display_progress(total_tasks)
-
-        # Clean up
-        for p in processes:
-            p.join()
+            # Clean up batch processes
+            for p in processes:
+                p.join()
+                p.close()
 
         print("\nCompleted all tasks!")
         return [results.get(i) for i in range(total_tasks)]
@@ -286,10 +286,14 @@ def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=
         folder_group_name: str, folders: List[str]
     ) -> Tuple[str, Dict]:
         print(f"\nTesting group: {folder_group_name}")
-        run_stats = run_tests(
-            env, cmd_args, folders=folders, cmorl=cmorl, max_ep_len=max_ep_len
-        )
-        return (folder_group_name, run_stats)
+        try:
+            run_stats = run_tests(
+                env, cmd_args, folders=folders, cmorl=cmorl, max_ep_len=max_ep_len
+            )
+            return (folder_group_name, run_stats)
+        except Exception as e:
+            print(f"Error in group {folder_group_name}: {str(e)}")
+            return None
 
     if cmd_args.render:
         results = [
@@ -302,7 +306,6 @@ def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=
             run_folder_group,
             [(name, folders) for name, folders in folder_groups.items()],
         )
-        # Filter out None results
         results = [r for r in results if r is not None]
 
     return dict(results)
