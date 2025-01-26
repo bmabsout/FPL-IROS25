@@ -265,8 +265,8 @@ def ddpg(
             keep_in_range = tf.reduce_mean(
                 move_towards_range(before_clip, -1.0, 1.0)
             )
-            td0_error = tf.abs(q - backup)
-            estimated_tdinf_error = tf.abs(q - estimated_values)
+            td0_error = (q - backup)
+            estimated_tdinf_error = (q - estimated_values)
             q_bellman_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(td0_error**2.0, axis=0)))
             q_direct_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(estimated_tdinf_error**2.0, axis=0)))
 
@@ -374,8 +374,8 @@ def ddpg(
             q_c = 0.0
         learning_rate_reducer = cmorl.randomization_schedule(t, total_steps, q_c if q_c else 0.0)
         # learning_rate_reducer = (1.0 - q_c) if q_c else 1.0
-        pi_optimizer.learning_rate.assign(learning_rate_reducer * hp.pi_lr)
-        q_optimizer.learning_rate.assign(learning_rate_reducer * hp.q_lr)
+        # pi_optimizer.learning_rate.assign(hp.pi_lr)
+        # q_optimizer.learning_rate.assign(hp.q_lr)
         for train_step in range(hp.train_steps):
             batch = replay_buffer.sample_batch(hp.batch_size, np_random=np_random)
             obs1 = tf.constant(batch["obs1"])
@@ -405,7 +405,7 @@ def ddpg(
             ) = pi_update(obs1, obs2, (train_step + 1) % 20 == 0)
             logger.store(actor_before_clip_c=1.0 - before_clip_c)
 
-            qs_c = qs_c.numpy()
+            qs_c = np.asarray(qs_c)
             logger.store(
                 Q_comp=q_c,
             )
