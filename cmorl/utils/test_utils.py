@@ -202,134 +202,105 @@ import time
 from datetime import datetime
 from typing import Dict, List, Tuple, Any
 
+
 class ProcessManager:
-    """
-    Manages distributed processing with proper synchronization inheritance.
-    Implements a process-based approach rather than pool-based to ensure
-    proper sharing of synchronized objects.
-    """
     def __init__(self, max_workers: int = None):
         self.max_workers = max_workers or min(40, mp.cpu_count())
-        self.counter = mp.Value('i', 0)
-        self.start_time = None
-        
-    def _worker_process(self, func: callable, args: tuple, 
-                       counter: mp.Value) -> Any:
-        """
-        Individual worker process that properly inherits synchronization.
-        
-        Args:
-            func: Target function to execute
-            args: Arguments for the target function
-            counter: Inherited synchronized counter
-        """
+        self.counter = mp.Value("i", 0)
+        self.result_queue = mp.Queue()
+
+    def _worker_process(
+        self,
+        task_id: int,
+        func: callable,
+        args: tuple,
+        counter: mp.Value,
+        result_queue: mp.Queue,
+    ):
         try:
             result = func(*args)
             with counter.get_lock():
                 counter.value += 1
-            return result
+            result_queue.put((task_id, result))
+        except Exception as e:
+            result_queue.put((task_id, None))
+            print(f"Error in task {task_id}: {str(e)}")
         finally:
-            os._exit(0)
-            
-    def _display_progress(self, total: int) -> None:
-        """
-        Updates progress display with time estimation.
-        
-        Args:
-            total: Total number of tasks to complete
-        """
-        completed = self.counter.value
-        # elapsed = (datetime.now() - self.start_time).total_seconds()
-        
-        # if completed > 0:
-        #     time_per_task = elapsed / completed
-        #     remaining = time_per_task * (total - completed)
-        #     time_str = f"{remaining/60:.1f} minutes"
-        # else:
-        #     time_str = "calculating..."
-            
-        sys.stdout.write(
-            f"\rProgress: {completed}/{total} tasks completed "
-            # f"(Est. remaining: {time_str})"
-        )
+            result_queue.put(("DONE", task_id))
+
+    def _display_progress(self, total: int):
+        sys.stdout.write(f"\rProgress: {self.counter.value}/{total} tasks completed")
         sys.stdout.flush()
 
-    def run_parallel(self, func: callable, 
-                    items: List[Tuple]) -> List[Any]:
-        """
-        Executes tasks in parallel with proper synchronization inheritance.
-        
-        Args:
-            func: Function to execute for each item
-            items: List of argument tuples for each function call
-            
-        Returns:
-            List of results from all processes
-        """
-        self.start_time = datetime.now()
+    def run_parallel(self, func: callable, items: List[Tuple]) -> List[Any]:
         total_tasks = len(items)
-        active_processes = []
-        results = []
-        current_index = 0
+        results = {}
+        completed_tasks = set()
 
-        print(f"\nStarting {total_tasks} tasks using {self.max_workers} workers\n")
+        processes = []
+        for i, args in enumerate(items):
+            if not isinstance(args, tuple):
+                args = (args,)
+            p = mp.Process(
+                target=self._worker_process,
+                args=(i, func, args, self.counter, self.result_queue),
+            )
+            processes.append(p)
 
-        while current_index < total_tasks or active_processes:
-            # Start new processes up to max_workers
-            while current_index < total_tasks and len(active_processes) < self.max_workers:
-                args = items[current_index]
-                if not isinstance(args, tuple):
-                    args = (args,)
-                    
-                process = mp.Process(
-                    target=self._worker_process,
-                    args=(func, args, self.counter)
-                )
-                process.start()
-                active_processes.append((process, current_index))
-                current_index += 1
+        # Start initial batch of processes
+        active_processes = processes[: self.max_workers]
+        next_process_idx = self.max_workers
 
-            # Check completed processes
-            still_active = []
-            for process, idx in active_processes:
-                if not process.is_alive():
-                    process.join()
-                    results.append((idx, None))  # Actual result handling would need queue
-                else:
-                    still_active.append((process, idx))
-            
-            active_processes = still_active
+        for p in active_processes:
+            p.start()
+
+        while len(completed_tasks) < total_tasks:
+            msg_type, data = self.result_queue.get()
+
+            if msg_type == "DONE":
+                task_id = data
+                completed_tasks.add(task_id)
+
+                # Start next process if any remaining
+                if next_process_idx < len(processes):
+                    processes[next_process_idx].start()
+                    next_process_idx += 1
+            else:
+                task_id, result = msg_type, data
+                results[task_id] = result
+
             self._display_progress(total_tasks)
-            time.sleep(0.1)  # Prevent CPU thrashing
+
+        # Clean up
+        for p in processes:
+            p.join()
 
         print("\nCompleted all tasks!")
-        return [r[1] for r in sorted(results)]  # Sort by original index
+        return [results.get(i) for i in range(total_tasks)]
 
-def run_folder_group_tests(env, cmd_args, folder_groups, 
-                          cmorl=None, max_ep_len=None):
-    """
-    Runs folder group tests with proper process management.
-    """
-    def run_folder_group(folder_group_name: str, folders: List[str]) -> Tuple[str, Dict]:
+
+def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=None):
+    def run_folder_group(
+        folder_group_name: str, folders: List[str]
+    ) -> Tuple[str, Dict]:
         print(f"\nTesting group: {folder_group_name}")
         run_stats = run_tests(
-            env, cmd_args, folders=folders, 
-            cmorl=cmorl, max_ep_len=max_ep_len
+            env, cmd_args, folders=folders, cmorl=cmorl, max_ep_len=max_ep_len
         )
-        return folder_group_name, run_stats
+        return (folder_group_name, run_stats)
 
     if cmd_args.render:
-        # Sequential processing for render mode
-        results = []
-        for folder_group_name, folders in folder_groups.items():
-            result = run_folder_group(folder_group_name, folders)
-            results.append(result)
+        results = [
+            run_folder_group(folder_group_name, folders)
+            for folder_group_name, folders in folder_groups.items()
+        ]
     else:
-        # Process-based parallel execution
         process_mgr = ProcessManager()
         results = process_mgr.run_parallel(
             run_folder_group,
-            [(name, folders) for name, folders in folder_groups.items()]
+            [(name, folders) for name, folders in folder_groups.items()],
         )
+        # Filter out None results
+        results = [r for r in results if r is not None]
 
-    return {name: stats for name, stats in results if name is not None}
+    return dict(results)
