@@ -15,3 +15,5 @@ for env in environments:
     # cmd = f"python -m cmorl.test -n 10 -s {env}.pkl trained/{env}/{env}_AQS/*/seeds/*/epochs/*/"
     print(cmd)
     subprocess.run(cmd, shell=True)
+
+    
