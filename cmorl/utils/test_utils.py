@@ -209,7 +209,7 @@ class ProcessManager:
     proper sharing of synchronized objects.
     """
     def __init__(self, max_workers: int = None):
-        self.max_workers = max_workers or min(30, mp.cpu_count())
+        self.max_workers = max_workers or min(40, mp.cpu_count())
         self.counter = mp.Value('i', 0)
         self.start_time = None
         
