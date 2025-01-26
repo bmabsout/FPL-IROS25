@@ -229,7 +229,9 @@ class ProcessManager:
             result_queue.put(("DONE", task_id))
 
     def _display_progress(self, total: int):
-        sys.stdout.write(f"\rProgress: {self.counter.value}/{total} tasks completed")
+        sys.stdout.write(
+            f"\n\n\rProgress: {self.counter.value}/{total} tasks completed\n\n"
+        )
         sys.stdout.flush()
 
     def run_parallel(self, func: callable, items: List[Tuple]) -> List[Any]:
