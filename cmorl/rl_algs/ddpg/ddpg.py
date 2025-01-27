@@ -266,6 +266,7 @@ def ddpg(
                 move_towards_range(before_clip, -1.0, 1.0)
             )
             td0_error = (q - backup)
+            # td0_error = tf.where(td0_error > 0.0, td0_error, 0.75*td0_error)
             estimated_tdinf_error = (q - estimated_values)
             q_bellman_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(td0_error**2.0, axis=0)))
             q_direct_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(estimated_tdinf_error**2.0, axis=0)))
