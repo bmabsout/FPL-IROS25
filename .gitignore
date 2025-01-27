@@ -124,7 +124,7 @@ ipython_config.py
 #   https://pdm.fming.dev/#use-with-ide
 .pdm.toml
 
-*.pkl.
+*.pkl
 
 # tensorflow execution trace
 *.graph_execution_traces
