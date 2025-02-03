@@ -180,7 +180,7 @@ def lander_composer(q_values, p_batch=0, p_objectives=-4.0):
     qs_c = p_mean(q_values, p=p_batch, axis=0)
     clipped = clip_objectives(qs_c)
     (nearness, very_nearness, legs_touch, fuel_cost) = clipped
-    q_c = curriculum([nearness, very_nearness, legs_touch, fuel_cost], p=p_objectives)
+    q_c = curriculum([nearness, very_nearness, legs_touch, fuel_cost], slack=0.2, p=p_objectives)
     # land = curriculum([nearness, very_nearness, legs_touch], p=p_objectives)
     # q_c = then(land, fuel_cost)
     return clipped, q_c # weaken(q_c, 2.0)

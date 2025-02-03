@@ -68,7 +68,7 @@ def p_mean(l: tf.Tensor, p: float, slack=1e-7, default_val=0.0, axis=None, dtype
     slacked = l + slack
     p = tf.cast(p, dtype)
     default_val = tf.cast(default_val, dtype)
-    min_val = tf.constant(1e-5, dtype=dtype)
+    min_val = tf.constant(1e-4, dtype=dtype)
     p = tf.where(tf.abs(p) < min_val, -min_val if p < 0.0 else min_val, p)
     
     stabilizer = tf.reduce_min(slacked) if p < 1.0 else tf.reduce_max(slacked)
@@ -145,14 +145,29 @@ def move_towards_range(x, min, max):
 
     return 1.0 / tf.where(in_range, 1.0, tf.abs(normalized)**0.5), grad
 
+@tf.custom_gradient
+def offset(x, slack):
+    def grad(dx):
+        return dx, None  # Ignore the (1-slack) multiplication in gradient
+    return x * (1.0 - slack) + slack, grad
+
 @tf.function
 def then(x, y, slack=0.5, p=-1.0):
     slack = tf.cast(slack, x.dtype)
     min_p_mean = p_mean([0, slack], p=p)
-    return (p_mean([x,slack+y*(1-slack)], p=p)-min_p_mean)/(1.0 - min_p_mean)
+    return (p_mean([x,offset(y, slack)], p=p)-min_p_mean)/(1.0 - min_p_mean)
 
-def curriculum(l, slack=0.1, p=0.0):
-    return reduce(lambda x, y: then(y, x, slack=slack, p=p), reversed(l))
+# def curriculum(values, slack=0.3, p=0.0):
+#     values = list(reversed(values))
+#     result = values[0]
+#     for i, value in enumerate(values[1:]):
+#         result = then(value, result, slack=slack/2**i, p=p)
+#     return result
+
+def curriculum(values, slack=0.1, p=-1.0):
+    values = tf.convert_to_tensor(values)
+    return p_mean(offset(values, slack*(2-0.5**tf.range(tf.shape(values)[0], dtype=values.dtype))), p=p)
+
 
 @tf.function
 def weaken(x, weaken_by=5.0):
