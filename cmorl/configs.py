@@ -189,7 +189,7 @@ env_configs: dict[str, Config] = {
             },
             epochs=250,
             steps_per_epoch=2000,
-            p_objectives=-1.0,
+            p_objectives=-2.0,
             act_noise=0.05,
             pi_lr=3e-3,
             q_lr=3e-3,
