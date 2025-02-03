@@ -4,6 +4,7 @@
 # This script needs these libraries to be installed:
 #   tensorflow, numpy
 from collections import deque
+import os
 import time
 from typing import Callable
 import numpy as np
@@ -146,11 +147,12 @@ def ddpg(
     # start a new wandb run to track this script
 
     logger = TensorflowLogger(**logger_kwargs)
-    # logger.save_config({"hyperparams": hp.__dict__, "extra_hyperparams": extra_hyperparameters})
-    # tf.device("GPU")
+    # insure reproducibility
     tf.random.set_seed(hp.seed)
     np_random, _ = seeding.np_random(hp.seed)
-
+    os.environ['PYTHONHASHSEED'] = str(hp.seed)
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
+    tf.config.experimental.enable_op_determinism()
     env = env_fn()
     o, info = env.reset(seed=hp.seed)
     q_composer = reward_utils.default_q_composer if cmorl is None else cmorl.q_composer

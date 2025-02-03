@@ -39,6 +39,8 @@ def test(
         env = ForcedTimeLimit(env, max_episode_steps=force_truncate_at)
     o, _ = env.reset(seed=seed)
     np_random = np.random.default_rng(seed)
+    tf.random.set_seed(seed)
+    tf.config.experimental.enable_op_determinism()
     os = deque()
     rs = deque()
     cmorl_rs = deque()
@@ -310,6 +312,5 @@ def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=
             run_folder_group,
             [(name, folders) for name, folders in folder_groups.items()],
         )
-        results = [r for r in results if r is not None]
-
-    return dict(results)
+        # results = [r for r in results if r is not None]
+    return dict(r for r in results if r is not None)
