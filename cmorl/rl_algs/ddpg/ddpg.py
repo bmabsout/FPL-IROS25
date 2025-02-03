@@ -4,6 +4,7 @@
 # This script needs these libraries to be installed:
 #   tensorflow, numpy
 from collections import deque
+import os
 import time
 from typing import Callable
 import numpy as np
@@ -146,11 +147,12 @@ def ddpg(
     # start a new wandb run to track this script
 
     logger = TensorflowLogger(**logger_kwargs)
-    # logger.save_config({"hyperparams": hp.__dict__, "extra_hyperparams": extra_hyperparameters})
-    # tf.device("GPU")
+    # insure reproducibility
     tf.random.set_seed(hp.seed)
     np_random, _ = seeding.np_random(hp.seed)
-
+    os.environ['PYTHONHASHSEED'] = str(hp.seed)
+    os.environ['TF_DETERMINISTIC_OPS'] = '1'
+    tf.config.experimental.enable_op_determinism()
     env = env_fn()
     o, info = env.reset(seed=hp.seed)
     q_composer = reward_utils.default_q_composer if cmorl is None else cmorl.q_composer
@@ -265,8 +267,8 @@ def ddpg(
             keep_in_range = tf.reduce_mean(
                 move_towards_range(before_clip, -1.0, 1.0)
             )
-            td0_error = tf.abs(q - backup)
-            estimated_tdinf_error = tf.abs(q - estimated_values)
+            td0_error = (q - backup)
+            estimated_tdinf_error = (q - estimated_values)
             q_bellman_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(td0_error**2.0, axis=0)))
             q_direct_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(estimated_tdinf_error**2.0, axis=0)))
 
@@ -374,8 +376,8 @@ def ddpg(
             q_c = 0.0
         learning_rate_reducer = cmorl.randomization_schedule(t, total_steps, q_c if q_c else 0.0)
         # learning_rate_reducer = (1.0 - q_c) if q_c else 1.0
-        pi_optimizer.learning_rate.assign(learning_rate_reducer * hp.pi_lr)
-        q_optimizer.learning_rate.assign(learning_rate_reducer * hp.q_lr)
+        # pi_optimizer.learning_rate.assign(hp.pi_lr)
+        # q_optimizer.learning_rate.assign(hp.q_lr)
         for train_step in range(hp.train_steps):
             batch = replay_buffer.sample_batch(hp.batch_size, np_random=np_random)
             obs1 = tf.constant(batch["obs1"])
@@ -405,7 +407,7 @@ def ddpg(
             ) = pi_update(obs1, obs2, (train_step + 1) % 20 == 0)
             logger.store(actor_before_clip_c=1.0 - before_clip_c)
 
-            qs_c = qs_c.numpy()
+            qs_c = np.asarray(qs_c)
             logger.store(
                 Q_comp=q_c,
             )

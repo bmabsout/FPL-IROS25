@@ -33,11 +33,14 @@ def test(
     cmorl=None,
     max_ep_len=None,
     gamma=0.99,
+    debug=False,
 ):
     if force_truncate_at is not None:
         env = ForcedTimeLimit(env, max_episode_steps=force_truncate_at)
     o, _ = env.reset(seed=seed)
     np_random = np.random.default_rng(seed)
+    tf.random.set_seed(seed)
+    tf.config.experimental.enable_op_determinism()
     os = deque()
     rs = deque()
     cmorl_rs = deque()
@@ -63,9 +66,9 @@ def test(
             # print(f"action: {action}")
             # print(f"o: {o}")
             # print(f"r: {r}")
-            if cmorl:
+            if cmorl and debug:
                 qs, q_c = cmorl.q_composer([cmorl_r])
-                # print(f"cmorl_qs: {(q_c.numpy(), qs.numpy())}")
+                print(f"cmorl_qs: {(np.asarray(q_c), np.asarray(qs))}")
     actions = np.array(actions)
     rs = np.array(rs)
     os = np.array(os)
@@ -73,17 +76,18 @@ def test(
     qs = np.array(critic(os, actions))
     np.set_printoptions(precision=2)
     rsum = np.sum(rs)
-    # print(f"reward: {rsum:.2f}, cmorl: {np.sum(cmorl_rs, axis=0)}")
     estimated_value = estimated_value_fn(cmorl_rs, gamma, done=d)
     # print(f"estimated value:", estimated_value)
     vals = values(cmorl_rs, gamma, done=d)
     offness = np.mean(np.abs(qs - vals), axis=0)
-    vals_and_errors = " ".join(
-        [f"{val:.2f}+{error:.2f}" for val, error in zip(estimated_value, offness)]
-    )
-    # print("vals+err:", vals_and_errors)
-    qs_c, q_c = cmorl.q_composer(vals)
-    # print("q_c:", np.asarray(q_c).round(2), "qs_c:", np.asarray(qs_c).round(2))
+    if debug:
+        vals_and_errors = " ".join(
+            [f"{val:.2f}+{error:.2f}" for val, error in zip(estimated_value, offness)]
+        )
+        print("vals+err:", vals_and_errors)
+        qs_c, q_c = cmorl.q_composer(vals)
+        print("q_c:", np.asarray(q_c).round(2), "qs_c:", np.asarray(qs_c).round(2))
+        print(f"reward: {rsum:.2f}, cmorl: {np.sum(cmorl_rs, axis=0)}")
     # print("first:", qs[0], np.sum(discounted_window(rs, gamma, done=d,axis=0)))
     # print("last:", qs[-1])
     # print("max:", np.max(qs, axis=0))
@@ -100,6 +104,7 @@ def folder_to_results(
     cmorl=None,
     max_ep_len=None,
     act_noise=0.0,
+    debug=False,
     **kwargs,
 ):
     saved_actor = save_utils.load_actor(folder_path)
@@ -123,6 +128,7 @@ def folder_to_results(
             force_truncate_at=force_truncate_at,
             cmorl=cmorl,
             max_ep_len=max_ep_len,
+            debug=debug
         )
         for i in range(num_tests)
     ]
@@ -147,8 +153,8 @@ def run_tests(env, cmd_args, folders, cmorl: CMORL = None, max_ep_len=None):
             )
         )
         qs_c, q_c = cmorl.q_composer(np.concatenate(valss, axis=0))
-        q_cs.append(q_c.numpy())
-        qs_cs.append(qs_c.numpy())
+        q_cs.append(np.asarray(q_c))
+        qs_cs.append(np.asarray(qs_c))
         rsums_means.append(np.mean(rsums))
 
     results = {
@@ -306,6 +312,5 @@ def run_folder_group_tests(env, cmd_args, folder_groups, cmorl=None, max_ep_len=
             run_folder_group,
             [(name, folders) for name, folders in folder_groups.items()],
         )
-        results = [r for r in results if r is not None]
-
-    return dict(results)
+        # results = [r for r in results if r is not None]
+    return dict(r for r in results if r is not None)
