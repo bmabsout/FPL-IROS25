@@ -205,7 +205,7 @@ from typing import Dict, List, Tuple, Any
 
 class ProcessManager:
     def __init__(self, max_workers: int = None):
-        self.max_workers = max_workers or min(30, mp.cpu_count())  # Reduced from 40
+        self.max_workers = max_workers or min(12, mp.cpu_count())  # Reduced from 40
         self.counter = mp.Value("i", 0)
         self.result_queue = mp.Queue()
 
@@ -239,7 +239,7 @@ class ProcessManager:
 
     def run_parallel(self, func: callable, items: List[Tuple]) -> List[Any]:
         total_tasks = len(items)
-        max_concurrent = min(self.max_workers, 30)  # Further limit concurrent processes
+        max_concurrent = min(self.max_workers, 12)  # Further limit concurrent processes
         results = {}
         completed_tasks = set()
 
