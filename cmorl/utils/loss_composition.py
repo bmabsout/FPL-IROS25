@@ -147,6 +147,7 @@ def move_towards_range(x, min, max):
 
 @tf.custom_gradient
 def offset(x, slack):
+    slack = tf.cast(slack, x.dtype)
     def grad(dx):
         return dx, None  # Ignore the (1-slack) multiplication in gradient
     return x * (1.0 - slack) + slack, grad
@@ -166,7 +167,9 @@ def then(x, y, slack=0.5, p=-1.0):
 
 def curriculum(values, slack=0.1, p=-1.0):
     values = tf.convert_to_tensor(values)
-    return p_mean(offset(values, slack*(2-0.5**tf.range(tf.shape(values)[0], dtype=values.dtype))), p=p)
+    slacked = slack*(1-0.5**tf.range(tf.shape(values)[0], dtype=values.dtype))
+    min_curr = p_mean(slacked, p=p)
+    return (p_mean(offset(values, slacked), p=p) - min_curr)/(1.0 - min_curr)
 
 
 @tf.function
