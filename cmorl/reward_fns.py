@@ -16,22 +16,26 @@ def mujoco_multi_dim_reward_joints_x_velocity(transition: Transition, env: Mujoc
         env.prev_xpos = np.copy(env.data.xpos) # type: ignore
     x_velocities = (env.data.xpos - env.prev_xpos) / env.dt # type: ignore
     env.prev_xpos = np.copy(env.data.xpos) # type: ignore
-    slow_speed = np.clip(x_velocities[1:, 0]*speed_multiplier*3, 0.0, 1.0)
-    fast_speed = p_mean(np.clip(x_velocities[1:, 0]*speed_multiplier, 0.0, 1.0), p=0.0)
-    return np.hstack([slow_speed, [fast_speed], action])
+    # slow_speed = np.clip(x_velocities[1:, 0]*speed_multiplier*3, 0.0, 1.0)
+    speed = np.clip(x_velocities[1:, 0]*speed_multiplier, 0.0, 1.0)
+    return np.hstack([speed, action])
 
 
 def mujoco_CMORL(num_actions, speed_multiplier=1.0):
     @tf.function
-    def mujoco_composer(q_values, p_batch=0, p_objectives=-4.0):
-        qs_c = p_mean(q_values, p=p_batch, axis=0)
-        slow_speed = p_mean(qs_c[0:-num_actions-1], p=-1.0)
-        fast_speed = qs_c[-num_actions-1]
-        action = p_mean(qs_c[-num_actions:], p=0.0)
+    def mujoco_composer(q_values, p_batch=0.0, p_objectives=-4.0):
+        q_x_batch = tf.transpose(q_values)
+        speed_batch =p_mean(q_x_batch[0:-num_actions], p=-1.0, axis=0)
+        action_batch = tf.clip_by_value(p_mean(q_x_batch[-num_actions:], p=0.0, axis=0), 0.0, 1.0)
+        combined_batch = p_mean([speed_batch, action_batch], p=p_objectives, axis=0)
+        combined = p_mean(combined_batch, p=p_batch, axis=0)
+        # qs_c = p_mean(q_values, p=p_batch, axis=0)
+        # speed = p_mean(qs_c[0:-num_actions], p=-2.0)
+        # action = tf.clip_by_value(p_mean(qs_c[-num_actions:], p=0.0)/0.7, 0.0, 1.0)
         # q_c = then(forward, action, slack=0.5) 
         # q_c = forward
-        q_c = p_mean([slow_speed, offset(fast_speed, 0.3), action], p=p_objectives)
-        return tf.stack([slow_speed, fast_speed, action]), q_c
+        # q_c = p_mean([speed, action], p=p_objectives)
+        return p_mean([speed_batch, action_batch], p=1.0, axis=-1), combined
     return CMORL(partial(mujoco_multi_dim_reward_joints_x_velocity, speed_multiplier=speed_multiplier), mujoco_composer)
 
 def halfcheetah_CMORL():
@@ -170,7 +174,7 @@ def lunar_lander_rw(transition: Transition, env: LunarLander)  -> np.ndarray:
 def clip_objectives(qs_c):
     nearness=tf.clip_by_value(qs_c[0]/0.8, 0.0, 1.0)
     very_nearness=offset(tf.clip_by_value(qs_c[1]/0.6, 0.0, 1.0), 0.1)
-    fuel_cost = offset(p_mean(qs_c[2:4], p=0.5), 0.5)
+    fuel_cost = offset(tf.clip_by_value(p_mean(qs_c[2:4], p=1.0, axis=0)/0.7, 0.0, 1.0), 0.5)
     legs_touch = offset(tf.clip_by_value(qs_c[4]/0.6, 0.0, 1.0), 0.1)
     landed = offset(tf.clip_by_value(qs_c[5]/0.7, 0.0, 1.0), 0.1)
     return (nearness, very_nearness, legs_touch, fuel_cost, landed)
@@ -178,11 +182,15 @@ def clip_objectives(qs_c):
 
 @tf.function
 def lander_composer(q_values, p_batch=0, p_objectives=-4.0):
+    # q_x_batch = tf.transpose(q_values)
     qs_c = p_mean(q_values, p=p_batch, axis=0)
     clipped = clip_objectives(qs_c)
     (nearness, very_nearness, legs_touch, fuel_cost, landed) = clipped
+    # combined_batch = p_mean(clipped, p=p_objectives, axis=0)
+    # q_c = p_mean(combined_batch, p=p_batch, axis=0)
+    # qs_c = p_mean(clipped, p=p_batch, axis=1)
     q_c = p_mean([nearness, very_nearness, legs_touch, fuel_cost, landed], p=p_objectives)
-    return clipped, q_c
+    return qs_c, q_c
 
 @tf.function
 def lander_composer2(q_values, p_batch=0, p_objectives=-4.0):

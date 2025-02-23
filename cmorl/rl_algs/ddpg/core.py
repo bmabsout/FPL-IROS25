@@ -1,6 +1,6 @@
 import numpy as np
 from keras import Model # type: ignore
-from keras.layers import Dense, Input, Rescaling, Activation, Lambda, Dropout # type: ignore
+from keras.layers import Dense, Input, Rescaling, Activation, Lambda, Dropout, BatchNormalization # type: ignore
 from keras.constraints import MaxNorm # type: ignore
 from gymnasium import spaces
 import keras
@@ -90,7 +90,8 @@ class CriticActivation(Activation):
     def __init__(self, **kwargs):
         if "activation" in kwargs:
             del kwargs["activation"]
-        super().__init__(activation=lambda x: tf.tanh(x*3.5)**2.0, **kwargs)
+        # super().__init__(activation=lambda x: tf.tanh(x*3.5)**2.0, **kwargs)
+        super().__init__(activation=lambda x: x, **kwargs)
 
 def actor(obs_space: spaces.Box, act_space: spaces.Box, hidden_sizes, obs_normalizer, seed=42, push_strength=1e-3):
     inputs = Input([obs_space.shape[0]])
