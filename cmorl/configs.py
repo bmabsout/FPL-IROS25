@@ -186,7 +186,7 @@ env_configs: dict[str, Config] = {
             # polyak=0.995,
             gamma = 0.99,
             p_objectives=-1.0,
-            p_batch=-1.0,
+            p_batch=1.0,
         ),
     ),
     "Pendulum-custom": Config(
