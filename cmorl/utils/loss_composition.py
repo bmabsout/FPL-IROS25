@@ -119,6 +119,12 @@ def scale_gradient(x, scale):
 
     return x, grad
 
+@tf.custom_gradient
+def importance(x, p):
+    def grad(dy):
+        return (dy, None)  # Gradient is unaffected by the power
+
+    return x ** p, grad
 
 @tf.custom_gradient
 def move_toward_zero(x):
@@ -149,8 +155,10 @@ def move_towards_range(x, min, max):
 def offset(x, slack):
     slack = tf.cast(slack, x.dtype)
     def grad(dx):
-        return dx, None  # Ignore the (1-slack) multiplication in gradient
-    return x * (1.0 - slack) + slack, grad
+        return dx, None  # Gradient is unaffected by slack
+    # Positive slack: scales down and adds to bottom (x*(1-slack) + slack)
+    # Negative slack: scales down from top (x*(1+slack))
+    return x * (1.0 - tf.abs(slack)) + tf.maximum(slack, 0.0), grad
 
 @tf.function
 def then(x, y, slack=0.5, p=-1.0):

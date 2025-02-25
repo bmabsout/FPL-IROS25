@@ -2,7 +2,7 @@ from functools import partial
 import numpy as np
 import tensorflow as tf
 
-from cmorl.utils.loss_composition import clip_to, curriculum, inv_mean, offset, p_mean, then, weaken
+from cmorl.utils.loss_composition import clip_to, curriculum, importance, inv_mean, offset, p_mean, then, weaken
 from cmorl.utils.reward_utils import  CMORL, Transition
 from gymnasium.envs.box2d.lunar_lander import LunarLander
 from gymnasium.envs.mujoco.reacher import ReacherEnv
@@ -120,22 +120,24 @@ def multi_dim_pendulum(transition: Transition, env, setpoint) -> np.ndarray:
     # check if action is an array or a scalar
     u = np.squeeze(transition.action)
     th, thdot = env.state  # th := theta
-    angle_rw = 1.0 - normed_angular_distance(th, setpoint)
+    angle_rw = 1.0 - tf.clip_by_value(normed_angular_distance(th, setpoint)*2.0, 0.0, 1.0)
 
     # Normalizing the torque to be in the range [0, 1]
-    normalized_u = u / env.max_torque
-    normalized_u = abs(normalized_u)
-    actuation_rw = 1.0 - normalized_u
+    normalized_u = abs(u / env.max_torque)
+    actuation_rw = 1.0 - normalized_u**2.0
     
     # Merge the angle reward and the normalized torque into a single reward vector
     thdot_rw = 1.0 - np.abs(thdot) / env.max_speed
     rw_vec = np.array([angle_rw, actuation_rw], dtype=np.float32)
     return rw_vec
 
+@tf.function
 def pendulum_composer(q_values, p_batch=0, p_objectives=-4.0):
     qs_batch = tf.transpose(q_values)
-    q_c = p_mean(p_mean(qs_batch, p=p_objectives, axis=0), p=p_batch, axis=0)
-    return p_mean(qs_batch, p=p_batch, axis=0), q_c
+    angle = qs_batch[0]**2.0
+    actuation = qs_batch[1]
+    q_c = p_mean(p_mean([angle, actuation], p=p_objectives, axis=0), p=p_batch, axis=0)
+    return p_mean([angle, actuation], p=p_batch, axis=0), q_c
 
 def are_bodies_in_contact(world, body1, body2):
     # Get the contact list from the world
