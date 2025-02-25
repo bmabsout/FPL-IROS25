@@ -272,7 +272,7 @@ def ddpg(
             q_bellman_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(td0_error**2.0, axis=0)))
             q_direct_c = tf.reduce_mean(tf.sqrt(tf.reduce_mean(estimated_tdinf_error**2.0, axis=0)))
 
-            q_loss = q_bellman_c + q_direct_c * hp.qd_power - keep_in_range
+            q_loss = q_bellman_c + q_direct_c * hp.qd_power #- keep_in_range
 
             # q_loss = tf.reduce_mean(td0_error**2.0 + hp.qd_power*estimated_tdinf_error**2.0)
             # tf.print("","before_clip_min", np_const_width(1.0 - p_mean(1.0 - outputs["before_before_clip"], p=20.0, axis=0)), "\n"
@@ -298,7 +298,7 @@ def ddpg(
             before_clip_c = p_mean(
                 move_towards_range(before_clip, -hp.threshold, hp.threshold), p=0.0
             )
-            q_values = q_network(tf.concat([obs1, pi], axis=-1))
+            q_values = tf.clip_by_value(q_network(tf.concat([obs1, pi], axis=-1)), 0.0, 1.0)
             qs_c, q_c = q_composer(
                 q_values, p_batch=hp.p_batch, p_objectives=hp.p_objectives
             )
