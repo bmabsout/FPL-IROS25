@@ -92,7 +92,7 @@ def composed_reward_fn(transition, env):
     return reward
 
 def multi_dim_reacher(transition: Transition, env: ReacherEnv) -> np.ndarray:
-    reward_performance = 1.0 - np.clip(np.sum((transition.next_state[-3:-1]/0.2)**2.0), 0.0, 1.0)
+    reward_performance = 1.0 - np.clip(np.linalg.norm(transition.next_state[-3:-1])/0.4, 0.0, 1.0)
     reward_actuation = np.clip((1 - (transition.action/0.4)**2.0), 0.0, 1.0)
     # print(transition.next_state[-3:-1])
     # print("rw:", reward_performance)
@@ -101,11 +101,12 @@ def multi_dim_reacher(transition: Transition, env: ReacherEnv) -> np.ndarray:
 
 @tf.function
 def reacher_composer(q_values, p_batch=0, p_objectives=-1.0):
-    qs_c = p_mean(q_values, p=p_batch, axis=0)
-    reach = qs_c[0] 
-    smoothness = p_mean(qs_c[1:], p=0.0)
-    q_c = p_mean([reach, smoothness], p=p_objectives)
-    return qs_c, q_c
+    qs_batch = tf.transpose(q_values)
+    reach = qs_batch[0]**2.0
+    smoothness = p_mean(qs_batch[1:], p=0.0, axis=0)
+    combined = p_mean([reach, smoothness], p=p_objectives, axis=0)
+    q_c = p_mean(combined, p=p_batch, axis=0)
+    return p_mean([smoothness, reach], p=p_batch, axis=-1), q_c
 
 reacher_cmorl = CMORL(
     multi_dim_reacher, reacher_composer 
