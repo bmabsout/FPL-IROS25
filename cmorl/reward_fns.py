@@ -132,12 +132,9 @@ def multi_dim_pendulum(transition: Transition, env, setpoint) -> np.ndarray:
     return rw_vec
 
 def pendulum_composer(q_values, p_batch=0, p_objectives=-4.0):
-    qs_c = p_mean(q_values, p=p_batch, axis=0)
-    angle = qs_c[0]
-    actuation = qs_c[1]
-    q_c = curriculum([angle, actuation], p=p_objectives, slack=0.5)
-    return qs_c, q_c
-
+    qs_batch = tf.transpose(q_values)
+    q_c = p_mean(p_mean(qs_batch, p=p_objectives, axis=0), p=p_batch, axis=0)
+    return p_mean(qs_batch, p=p_batch, axis=0), q_c
 
 def are_bodies_in_contact(world, body1, body2):
     # Get the contact list from the world
@@ -182,14 +179,14 @@ def clip_objectives(qs_c):
 
 @tf.function
 def lander_composer(q_values, p_batch=0, p_objectives=-4.0):
-    # q_x_batch = tf.transpose(q_values)
-    qs_c = p_mean(q_values, p=p_batch, axis=0)
-    clipped = clip_objectives(qs_c)
-    (nearness, very_nearness, legs_touch, fuel_cost, landed) = clipped
-    # combined_batch = p_mean(clipped, p=p_objectives, axis=0)
-    # q_c = p_mean(combined_batch, p=p_batch, axis=0)
-    # qs_c = p_mean(clipped, p=p_batch, axis=1)
-    q_c = p_mean([nearness, very_nearness, legs_touch, fuel_cost, landed], p=p_objectives)
+    q_x_batch = tf.transpose(q_values)
+    # qs_c = p_mean(q_values, p=p_batch, axis=0)
+    clipped = clip_objectives(q_x_batch)
+    # (nearness, very_nearness, legs_touch, fuel_cost, landed) = clipped
+    combined_batch = p_mean(clipped, p=p_objectives, axis=0)
+    q_c = p_mean(combined_batch, p=p_batch, axis=0)
+    qs_c = p_mean(clipped, p=p_batch, axis=1)
+    # q_c = p_mean([nearness, very_nearness, legs_touch, fuel_cost, landed], p=p_objectives)
     return qs_c, q_c
 
 @tf.function
