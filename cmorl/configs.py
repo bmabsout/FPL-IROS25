@@ -134,7 +134,7 @@ env_configs: dict[str, Config] = {
         ),
     ),
     "Walker2d-v4": Config(
-        reward_fns.walker_CMORL(speed_multiplier=0.3),
+        reward_fns.mujoco_CMORL(speed_multiplier=0.3, num_actions=6),
         # None,
         HyperParams(
             ac_kwargs={
@@ -144,17 +144,19 @@ env_configs: dict[str, Config] = {
             },
             epochs=20,
             steps_per_epoch=2000,
-            p_objectives=0.0,
+            polyak=0.995,
+            qd_power=0.75,
+            p_objectives=0.5,
             threshold=2.0,
             act_noise=0.02,
         ),
     ),
     "HalfCheetah-v4": Config(
-        reward_fns.mujoco_CMORL(num_actions=6, speed_multiplier=0.3),
+        reward_fns.mujoco_CMORL(num_actions=6, speed_multiplier=0.2, action_multiplier=1.0),
         # reward_fns.halfcheetah_CMORL(),
         HyperParams(
             epochs=200,
-            act_noise=0.01,
+            act_noise=0.05,
             ac_kwargs={
                 "critic_hidden_sizes": [400, 300],
                 "actor_hidden_sizes": [32, 32],
@@ -166,6 +168,7 @@ env_configs: dict[str, Config] = {
             polyak=0.995,
             p_batch=1.0,
             p_objectives=0.5,
+            # batch_size=256,
             # pi_lr=3e-4,
             threshold = 2.0
         ),
