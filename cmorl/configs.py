@@ -150,21 +150,24 @@ env_configs: dict[str, Config] = {
         ),
     ),
     "HalfCheetah-v4": Config(
-        # reward_fns.mujoco_CMORL(num_actions=6, speed_multiplier=0.25),
-        reward_fns.halfcheetah_CMORL(),
+        reward_fns.mujoco_CMORL(num_actions=6, speed_multiplier=0.3),
+        # reward_fns.halfcheetah_CMORL(),
         HyperParams(
             epochs=200,
-            act_noise=0.05,
-            p_objectives=-1.0,
+            act_noise=0.01,
             ac_kwargs={
                 "critic_hidden_sizes": [400, 300],
                 "actor_hidden_sizes": [32, 32],
             },
-            qd_power=1.0,
-            before_clip=0.1,
+            qd_power=0.75,
+            # before_clip=0.1,
             steps_per_epoch=2000,
+            gamma=0.9,
+            polyak=0.995,
+            p_batch=1.0,
+            p_objectives=0.5,
             # pi_lr=3e-4,
-            # threshold = 0.5
+            threshold = 2.0
         ),
     ),
     "Pendulum-v1": Config(
