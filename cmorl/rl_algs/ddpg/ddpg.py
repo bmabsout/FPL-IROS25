@@ -155,7 +155,7 @@ def ddpg(
     tf.config.experimental.enable_op_determinism()
     env = env_fn()
     o, info = env.reset(seed=hp.seed)
-    q_composer = reward_utils.default_q_composer if cmorl is None else cmorl.q_composer
+    q_composer = None if cmorl is None else cmorl.q_composer
 
     weights_and_biases = wandb.init(
         # set the wandb project where this run will be logged
@@ -298,13 +298,21 @@ def ddpg(
             before_clip_c = p_mean(
                 move_towards_range(before_clip, -hp.threshold, hp.threshold), p=0.0
             )
-            q_values = tf.clip_by_value(q_network(tf.concat([obs1, pi], axis=-1)), 0.0, 1.0)
-            qs_c, q_c = q_composer(
-                q_values, p_batch=hp.p_batch, p_objectives=hp.p_objectives
-            )
-            # qs_c = tf.expand_dims(q_c, 0)
-            all_c = p_mean([q_c, scale_gradient(before_clip_c, hp.before_clip)], p=0.0)
+
+            if cmorl is not None:
+                q_values = tf.clip_by_value(q_network(tf.concat([obs1, pi], axis=-1)), 0.0, 1.0)
+                qs_c, q_c = q_composer(
+                    q_values, p_batch=hp.p_batch, p_objectives=hp.p_objectives
+                )
+                all_c = p_mean([q_c, scale_gradient(before_clip_c, hp.before_clip)], p=0.0)
+            else:
+                q_values = q_network(tf.concat([obs1, pi], axis=-1))
+                q_c = tf.reduce_mean(q_values)
+                qs_c = [q_c]
+                all_c = q_c + hp.before_clip*before_clip_c
+            
             pi_loss = 1.0 - all_c
+            # qs_c = tf.expand_dims(q_c, 0)
             # all_c = q_c
             # pi_loss = -q_c + hp.before_clip*p_mean(tf.where(before_clip > hp.threshold, before_clip, tf.where(before_clip < -hp.threshold, -before_clip, 0.0)), p=2.0)
         grads = tape.gradient(pi_loss, pi_network.trainable_variables)
@@ -374,7 +382,7 @@ def ddpg(
         q_c = wandb.run.summary.get("Q-composed")
         if q_c is None:
             q_c = 0.0
-        learning_rate_reducer = cmorl.randomization_schedule(t, total_steps, q_c if q_c else 0.0)
+        # learning_rate_reducer = cmorl.randomization_schedule(t, total_steps, q_c if q_c else 0.0)
         # learning_rate_reducer = (1.0 - q_c) if q_c else 1.0
         # pi_optimizer.learning_rate.assign(hp.pi_lr)
         # q_optimizer.learning_rate.assign(hp.q_lr)
