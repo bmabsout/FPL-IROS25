@@ -155,6 +155,7 @@ def ddpg(
     tf.config.experimental.enable_op_determinism()
     env = env_fn()
     o, info = env.reset(seed=hp.seed)
+    cmorl = None if hp.ignore_aps else cmorl
     q_composer = None if cmorl is None else cmorl.q_composer
 
     weights_and_biases = wandb.init(

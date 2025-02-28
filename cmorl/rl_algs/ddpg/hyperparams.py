@@ -33,8 +33,8 @@ class HyperParams(Namespace):
     threshold        : float
     before_clip      : float
     env_args         : dict[str, object]
+    ignore_aps       : bool
     # noise_schedule : tf.keras.optimizers.schedules.LearningRateSchedule
-
 
 descriptions: dict[str,  str] = {
     "ac_kwargs": "Any kwargs appropriate for the actor_critic function you provided",
@@ -60,6 +60,7 @@ descriptions: dict[str,  str] = {
     "qd_power": "The weight of the td-inf loss",
     "threshold": "The threshold for the loss to keep the actions in range",
     "before_clip": "The loss weight for the clip loss",
+    "ignore_aps": "Whether to ignore the APS specification and train on original rewards, ala standard DDPG",
 }
 
 abbreviations = {
@@ -104,7 +105,8 @@ def default_hypers():
         qd_power        = 1.0,
         before_clip     = 1e-2,
         threshold       = 1.0,
-        env_args        = {}
+        env_args        = {},
+        ignore_aps      = False,
     )
 
 def combine(*hps: HyperParams):

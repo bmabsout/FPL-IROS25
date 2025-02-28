@@ -139,7 +139,6 @@ env_configs: dict[str, Config] = {
         HyperParams(
             ac_kwargs={
                 "critic_hidden_sizes": [400, 300],
-                #     "critic_hidden_sizes": [512, 512],
                 "actor_hidden_sizes": [32, 32],
             },
             epochs=20,
