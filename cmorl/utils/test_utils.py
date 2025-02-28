@@ -92,7 +92,7 @@ def test(
     # print("last:", qs[-1])
     # print("max:", np.max(qs, axis=0))
     # print("min:", np.min(qs, axis=0))
-    return os, rs, cmorl_rs, rsum, vals
+    return os, rs, cmorl_rs, rsum, vals, offness
 
 
 def folder_to_results(
@@ -141,9 +141,11 @@ def run_tests(env, cmd_args, folders, cmorl: CMORL = None, max_ep_len=None):
     q_cs = deque()
     qs_cs = deque()
     rsums_means = deque()
+    offness_means = deque()  # New deque to track offness means
+    
     for folder in folders:
         print("using folder:", folder)
-        _, _, _, rsums, valss = zip(
+        _, _, _, rsums, valss, offnesss = zip(
             *folder_to_results(
                 env,
                 folder_path=folder,
@@ -156,11 +158,16 @@ def run_tests(env, cmd_args, folders, cmorl: CMORL = None, max_ep_len=None):
         q_cs.append(np.asarray(q_c))
         qs_cs.append(np.asarray(qs_c))
         rsums_means.append(np.mean(rsums))
+        
+        # Calculate mean offness across all runs for this folder
+        offness_mean = np.mean(offnesss, axis=0)
+        offness_means.append(offness_mean)
 
     results = {
         "q_c": (np.mean(q_cs, axis=0), np.std(q_cs, axis=0)),
         "qs_c": (np.mean(qs_cs, axis=0), np.std(qs_cs, axis=0)),
         "rsums": (np.mean(rsums_means), np.std(rsums_means)),
+        "offness": (np.mean(offness_means, axis=0), np.std(offness_means, axis=0)),  # Add offness statistics
     }
 
     return results
