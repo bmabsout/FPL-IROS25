@@ -22,3 +22,5 @@
 `python envs/Pendulum/test_pendulum.py -lr training`
 
 
+# Visualization of pmean
+https://www.math3d.org/RkLQMt2Bl
