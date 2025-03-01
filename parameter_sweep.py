@@ -60,23 +60,25 @@ parameter_grid = {
     ],  # Fixed for this experiment
     "p_value": [
         # -10.0,
-        -2.0,
+        # -2.0,
         # -1.0,
         # 0.0,
         # 0.1,
+        1.0
     ],
     "slack": [
+        0.0,
         # 0.3,
         # 0.5,
         # 0.7,
         # 0.9,
-        1.0,
+        # 1.0,
         # 1.5,
     ],
     "reward_type": [
-        # "AND",
+        "AND",
         # "OR",
-        "curriculum",
+        # "curriculum",
         # "offset"
     ],
     "competitiveness": [

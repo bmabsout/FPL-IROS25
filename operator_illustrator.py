@@ -119,7 +119,7 @@ class RewardOptimizer:
         Returns:
             tf.Tensor: Tensor of output values following the competitive formula
         """
-        uncompeting_objectives = tf.sigmoid(self.variables)
+        uncompeting_objectives = self.variables
         others_means = (
             tf.reduce_sum(uncompeting_objectives) - uncompeting_objectives
         ) / (self.num_variables - 1)
@@ -147,7 +147,11 @@ class RewardOptimizer:
 
             # Calculate and apply gradients
             gradients = tape.gradient(reward, [self.variables])
-            self.optimizer.apply_gradients(zip(gradients, [self.variables]))
+            print(f"Gradients: {gradients}")
+            print(f"Variables: {self.variables}")
+            self.variables.assign(tf.clip_by_value(self.variables - self.learning_rate * gradients[0], 0.0, 1.0))
+
+            # self.optimizer.apply_gradients(zip(gradients, [self.variables]))
 
             # Store values for plotting
             self.o_history.append([float(o) for o in outputs])
@@ -167,7 +171,7 @@ class RewardOptimizer:
 
         # Plot objective trajectories with thin lines
         for i in range(self.num_variables):
-            ax.plot([o[i] for o in self.o_history], linewidth=1.0)
+            ax.plot([o[i] for o in self.o_history], linewidth=4.0)
 
         # Remove all decorative elements
         ax.set_xticks([])
@@ -201,7 +205,7 @@ class RewardOptimizer:
                 os.makedirs(f"results/{self.reward_type}")
             save_path = (
                 f"./results/{self.reward_type}/minimal_{self.reward_type}_"
-                f"p_{p_value}.svg"
+                f"p_{p_value}.pdf"
             )
 
         # plot a vertical line at the place where o[0] is 0.5
@@ -212,7 +216,8 @@ class RewardOptimizer:
         print(f"Closest index to {self.slack/2}: {closest_index}")
         print(f"Value at closest index: {self.o_history[closest_index][0]}")
         # plot a vertical line at that index
-        plt.axvline(x=closest_index, color="black", linestyle="--", linewidth=1.0)
+        if self.reward_type == "curriculum":
+            plt.axvline(x=closest_index, color="black", linestyle="--", linewidth=1.0)
 
         # Key change #4: Set pad_inches=0 to eliminate all padding during save
         plt.savefig(
@@ -289,7 +294,7 @@ class RewardOptimizer:
     #             f"p_value_{p_value}_"
     #             f"slack_{self.slack}_"
     #             f"competitiveness_{self.competitiveness}_"
-    #             f"randomness_{self.randomness}.svg"
+    #             f"randomness_{self.randomness}.pdf"
     #         )
 
     #     plt.savefig(save_path, bbox_inches="tight", dpi=300)
@@ -376,7 +381,7 @@ if __name__ == "__main__":
         help="Learning rate for gradient descent",
     )
     parser.add_argument(
-        "--num_steps", type=int, default=1000, help="Number of optimization steps"
+        "--num_steps", type=int, default=100, help="Number of optimization steps"
     )
     parser.add_argument(
         "--p_value", type=float, default=-2.0, help="Parameter for p-mean composition"

@@ -188,7 +188,7 @@ class PValueExperiment:
         if not os.path.exists("p_value_analysis"):
             os.makedirs("p_value_analysis")
         # plt.savefig(f"p_value_analysis/{self.reward_type}_p_value_analysis.png")
-        plt.savefig(f"aps_exp/p_value_analysis/p_value_analysis.svg", format="svg")
+        plt.savefig(f"aps_exp/p_value_analysis/p_value_analysis.pdf", format="pdf")
         plt.close()
 
 
