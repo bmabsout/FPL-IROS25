@@ -1,25 +1,75 @@
 import tensorflow as tf
+import os
 import keras
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import reduce
 from typing import Callable, List, Optional, Union
 import argparse
-from cmorl.utils.loss_composition import simple_p_mean, then, curriculum, p_mean
+from cmorl.utils.loss_composition import simple_p_mean, curriculum, p_mean, offset
 
-# NOTE: Remeber that the OR operator needs preturbation
-# TODO: Implement the OR operator using DeMorgan's law
-# TODO: Implement the AND operator
 # TODO: Change the naming of the curriculum function to offset or prioritize
-# TODO: remove the class structure and make everything a tf.function
-# TODO: Case 1: Showcase how the OR operator functions on 4 variables
-# TODO: Case 2: Showcase how the AND operator functions on 4 variables
-# TODO: Case 3: Showcase how the offset operator functions on 4 variables
+# TODO: remove the class structure and make  everything a tf.function
+
+
+def AND(objectives: List[tf.Tensor], p: float = -2.0) -> tf.Tensor:
+    """
+    Compute the AND operation on a list of objectives
+
+    Args:
+        objectives: List of objective tensors
+        p: Parameter for p-mean composition (default: -2.0)
+
+    Returns:
+        tf.Tensor: Result of the AND operation
+    """
+    return p_mean(objectives, p=p)
+
+
+# define an OR operator which is basically a p_mean_stable with a passed p value as an argument
+# also it is basically an AND with Demorgan's law
+def OR(objectives: List[tf.Tensor], p: float = -2.0) -> tf.Tensor:
+    """
+    Compute the OR operation on a list of objectives
+
+    Args:
+        objectives: List of objective tensors
+        p: Parameter for p-mean composition (default: -2.0)
+
+    Returns:
+        tf.Tensor: Result of the OR operation
+    """
+    objectives = 1 - objectives
+    return 1 - AND(objectives, p=p)
+
+
+def offset_2(o: List[tf.Tensor], slack: float = 0.1, p: float = -2.0) -> tf.Tensor:
+    """
+    Compute the offset operation on a list of objectives
+
+    Args:
+        objectives: List of objective tensors
+        slack: Slack parameter for offset (default: 0.1)
+        p: Parameter for p-mean composition (default: -2.0)
+
+    Returns:
+        tf.Tensor: Result of the offset operation
+    """
+    x1, x2 = o
+    return min((x1 + slack) / (1 + slack), x2)
 
 
 class RewardOptimizer:
     def __init__(
-        self, num_variables: int = 4, learning_rate: float = 0.01, num_steps: int = 1000, competitiveness: float = 0.2, randomness: float = 0.01
+        self,
+        reward_type: str,
+        slack: float = 0.1,
+        num_variables: int = 4,
+        learning_rate: float = 0.01,
+        num_steps: int = 1000,
+        competitiveness: float = 0.2,
+        randomness: float = 0.01,
+        initial_values: Optional[List[float]] = None,
     ):
         """
         Initialize the reward optimization problem
@@ -29,13 +79,29 @@ class RewardOptimizer:
             learning_rate: Learning rate for gradient descent (default: 0.01)
             num_steps: Number of optimization steps (default: 1000)
         """
+        self.reward_type = reward_type
+        self.slack = slack
         self.num_variables = num_variables
         self.learning_rate = learning_rate
         self.num_steps = num_steps
+        self.randomness = randomness
+        self.initial_values = initial_values
 
         # Initialize variables to optimize
-        initial_values = np.ones(num_variables) * 0.01+np.random.rand(num_variables)*randomness
-        # initial_values[0] = 0.5
+        if initial_values is not None:
+            if len(initial_values) != num_variables:
+                raise ValueError(
+                    f"Initial values length {len(initial_values)} does not match num_variables {num_variables}"
+                )
+            initial_values = np.array(initial_values)
+        else:
+            initial_values = np.clip(
+                a=np.ones(num_variables) * 0.01
+                + np.random.rand(num_variables) * randomness,
+                a_max=1.0,
+                a_min=0.0,
+            )
+
         self.variables = tf.Variable(initial_values, dtype=tf.float32)
 
         # Create optimizer
@@ -53,9 +119,11 @@ class RewardOptimizer:
         Returns:
             tf.Tensor: Tensor of output values following the competitive formula
         """
-        uncompeting_objectives = tf.tanh(tf.abs(self.variables))
-        others_means = (tf.reduce_sum(uncompeting_objectives)-uncompeting_objectives)/(self.num_variables-1)
-        outputs = uncompeting_objectives * (1 - others_means*self.competitiveness)
+        uncompeting_objectives = tf.sigmoid(self.variables)
+        others_means = (
+            tf.reduce_sum(uncompeting_objectives) - uncompeting_objectives
+        ) / (self.num_variables - 1)
+        outputs = uncompeting_objectives * (1 - others_means * self.competitiveness)
         return outputs
 
     def optimize(
@@ -75,7 +143,6 @@ class RewardOptimizer:
                 # Calculate outputs
                 outputs = self.compute_outputs()
 
-                # Calculate reward using provided composer
                 reward = -reward_composer(outputs, p=p_value)
 
             # Calculate and apply gradients
@@ -88,40 +155,144 @@ class RewardOptimizer:
 
     def plot_results(self, p_value: float, save_path: Optional[str] = None):
         """
-        Plot the optimization results
+        Plot minimalistic optimization results with zero white space margins
 
         Args:
-            p_value: P-value used in optimization (for plot title)
-            save_path: Optional path to save the plot (default: None)
+            p_value: P-value used in optimization (for filename only)
+            save_path: Optional path to save the plot
         """
-        plt.figure(figsize=(12, 4))
+        # Create figure with precise dimensions
+        plt.figure(figsize=(1.5, 1), facecolor="white")
+        ax = plt.gca()
 
-        # Plot outputs
-        plt.subplot(1, 2, 1)
+        # Plot objective trajectories with thin lines
         for i in range(self.num_variables):
-            plt.plot([o[i] for o in self.o_history], label=f"o{i+1}")
-        plt.xlabel("Gradient Steps")
-        plt.ylabel("Output Values")
-        plt.title("Output Values vs. Gradient Steps")
-        plt.legend()
-        plt.grid(True)
+            ax.plot([o[i] for o in self.o_history], linewidth=1.0)
 
-        # Plot reward
-        plt.subplot(1, 2, 2)
-        plt.plot(self.reward_history, label="Reward")
-        plt.xlabel("Gradient Steps")
-        plt.ylabel("Reward Value")
-        plt.title("Reward vs. Gradient Steps")
-        plt.legend()
-        plt.grid(True)
+        # Remove all decorative elements
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_xlabel("")
+        ax.set_ylabel("")
 
-        plt.tight_layout()
+        # Remove border lines (spines)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
 
+        # No grid
+        ax.grid(False)
+
+        # Key change #1: Set zero margins
+        plt.margins(0, 0)
+
+        # Key change #2: Extend subplot to figure edges completely
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+
+        # Key change #3: DO NOT call tight_layout which adds padding
+        # plt.tight_layout()  # Remove this line
+
+        # Handle save path creation
         if save_path is None:
-            save_path = f"toy_ex_APS_P_mean_{p_value}_lr_{self.learning_rate}_steps_{self.num_steps}.png"
+            if not os.path.exists("results"):
+                os.makedirs("results")
+            if not os.path.exists(f"results/{self.reward_type}"):
+                os.makedirs(f"results/{self.reward_type}")
+            save_path = (
+                f"./results/{self.reward_type}/minimal_{self.reward_type}_"
+                f"p_{p_value}.svg"
+            )
 
-        plt.savefig(save_path)
-        plt.show()
+        # plot a vertical line at the place where o[0] is 0.5
+        # find the index where o[0] is closest to 0.5
+        closest_index = np.argmin(
+            np.abs(np.array(self.o_history)[:, 0] - self.slack / 2)
+        )
+        print(f"Closest index to {self.slack/2}: {closest_index}")
+        print(f"Value at closest index: {self.o_history[closest_index][0]}")
+        # plot a vertical line at that index
+        plt.axvline(x=closest_index, color="black", linestyle="--", linewidth=1.0)
+
+        # Key change #4: Set pad_inches=0 to eliminate all padding during save
+        plt.savefig(
+            save_path, bbox_inches="tight", pad_inches=0, dpi=300, transparent=False
+        )
+        plt.close()
+
+    # def plot_results(self, p_value: float, save_path: Optional[str] = None):
+    #     """
+    #     Plot optimization results with outputs and reward on a single axis
+
+    #     Args:
+    #         p_value: P-value used in optimization (for plot title)
+    #         save_path: Optional path to save the plot (default: None)
+    #     """
+    #     # Step 1: Initialize the figure with appropriate dimensions
+    #     plt.figure(figsize=(10, 6))
+
+    #     # Step 2: Create main axes for unified plotting
+    #     ax = plt.gca()
+
+    #     # Step 3: Plot individual output trajectories
+    #     # Using different line styles for visual distinction
+    #     line_styles = ["-", "--", "-.", ":"]
+    #     for i in range(self.num_variables):
+    #         ax.plot(
+    #             [o[i] for o in self.o_history],
+    #             label=f"Output {i+1}",
+    #             linestyle=line_styles[i % len(line_styles)],
+    #             linewidth=1.5,
+    #         )
+
+    #     # Step 4: Plot reward trajectory with distinct appearance
+    #     ax.plot(
+    #         self.reward_history, label="Reward", color="red", linewidth=1.7, alpha=0.5
+    #     )
+
+    #     # Step 5: Configure axis labels and limits
+    #     ax.set_xlabel("Gradient Steps")
+    #     ax.set_ylabel("Values")
+
+    #     # Ensure y-axis starts from 0 for proper proportion visualization
+    #     ax.set_ylim(bottom=0)
+
+    #     # Step 6: Add grid for better readability
+    #     ax.grid(True, alpha=0.3, linestyle="--")
+
+    #     # Step 7: Create comprehensive title with experiment parameters
+    #     reward_type_display = self.reward_type.upper()
+    #     title = (
+    #         f"{reward_type_display} Optimization\n"
+    #         f"p={p_value}, slack={self.slack:.2f}, "
+    #         f"competitiveness={self.competitiveness:.2f}"
+    #     )
+    #     plt.title(title)
+
+    #     # Step 8: Position legend for optimal visibility
+    #     ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0)
+
+    #     # Step 9: Adjust layout to prevent label clipping
+    #     plt.tight_layout()
+
+    #     # Step 10: Handle save path creation and saving
+    #     if save_path is None:
+    #         if not os.path.exists("results"):
+    #             os.makedirs("results")
+    #         if not os.path.exists(f"results/{self.reward_type}"):
+    #             os.makedirs(f"results/{self.reward_type}")
+    #         save_path = (
+    #             f"./results/{self.reward_type}/operator_{self.reward_type}_"
+    #             f"num_variables_{self.num_variables}_"
+    #             f"learning_rate_{self.learning_rate}_"
+    #             f"num_steps_{self.num_steps}_"
+    #             f"p_value_{p_value}_"
+    #             f"slack_{self.slack}_"
+    #             f"competitiveness_{self.competitiveness}_"
+    #             f"randomness_{self.randomness}.svg"
+    #         )
+
+    #     plt.savefig(save_path, bbox_inches="tight", dpi=300)
 
 
 def main(
@@ -133,6 +304,7 @@ def main(
     reward_type: str = "curriculum",
     competitiveness: float = 0.2,
     randomness: float = 0.01,
+    initial_values: Optional[List[float]] = None,
 ):
     """
     Main function to run the optimization experiment
@@ -147,29 +319,48 @@ def main(
         competitiveness: amount of competitiveness to use in the objectives (default: 0.2)
         randomness: amount of randomness to use in the initial values (default: 0.01)
     """
-    # Create optimizer instance
-    optimizer = RewardOptimizer(
-        num_variables=num_variables, learning_rate=learning_rate, num_steps=num_steps, competitiveness=competitiveness, randomness=randomness
-    )
-
     # Select reward composer based on type
     if reward_type == "curriculum":
         reward_composer = lambda outputs, p: curriculum(outputs, slack=slack, p=p)
-        save_path = f"curriculum_slack_{slack}_p_{p_value}_lr_{learning_rate}_steps_{num_steps}.png"
     elif reward_type == "pmean":
         reward_composer = lambda outputs, p: simple_p_mean(outputs, p)
-        save_path = f"pmean_p_{p_value}_lr_{learning_rate}_steps_{num_steps}.png"
-    elif reward_type == "pmean_stable":
-        reward_composer = lambda outputs, p: p_mean(outputs, p)
-        save_path = f"pmean_stable_p_{p_value}_lr_{learning_rate}_steps_{num_steps}.png"
+    elif reward_type == "AND":
+        reward_composer = lambda outputs, p: AND(outputs, p)
+    elif reward_type == "OR":
+        reward_composer = lambda outputs, p: OR(outputs, p)
+    elif reward_type == "min":
+        reward_composer = lambda outputs, p: tf.reduce_min(outputs)
+    elif reward_type == "max":
+        reward_composer = lambda outputs, p: tf.reduce_max(outputs)
+    elif reward_type == "offset":
+        reward_composer = lambda outputs, p: offset_2(outputs, slack=slack, p=p)
     else:
         raise ValueError(f"Unknown reward type: {reward_type}")
+
+    # Create optimizer instance
+    optimizer = RewardOptimizer(
+        reward_type=reward_type,
+        slack=slack,
+        num_variables=num_variables,
+        learning_rate=learning_rate,
+        num_steps=num_steps,
+        competitiveness=competitiveness,
+        randomness=randomness,
+        initial_values=initial_values,
+    )
 
     # Run optimization
     optimizer.optimize(reward_composer=reward_composer, p_value=p_value)
 
     # Plot results
-    optimizer.plot_results(p_value=p_value, save_path=save_path)
+    optimizer.plot_results(p_value=p_value)
+
+
+def parse_float_list(arg):
+    """Convert a comma-separated string to a list of floats."""
+    if arg is None:
+        return None
+    return [float(x) for x in arg.split(",")]
 
 
 if __name__ == "__main__":
@@ -200,7 +391,7 @@ if __name__ == "__main__":
         "--reward_type",
         type=str,
         default="curriculum",
-        choices=["curriculum", "pmean", "pmean_stable"],
+        choices=["curriculum", "pmean", "AND", "OR", "min", "max", "offset"],
         help="Type of reward composer to use",
     )
     parser.add_argument(
@@ -215,6 +406,12 @@ if __name__ == "__main__":
         default=0.01,
         help="Randomness parameter for curriculum composer",
     )
+    parser.add_argument(
+        "--initial_values",
+        type=parse_float_list,  # Fixed: Using the custom parser function
+        default=None,
+        help="Initial values for the variables to optimize (comma-separated list of floats)",
+    )
 
     args = parser.parse_args()
     np.random.seed(42)
@@ -228,4 +425,5 @@ if __name__ == "__main__":
         reward_type=args.reward_type,
         competitiveness=args.competitiveness,
         randomness=args.randomness,
+        initial_values=args.initial_values,
     )
