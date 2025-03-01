@@ -131,6 +131,15 @@ def multi_dim_pendulum(transition: Transition, env, setpoint) -> np.ndarray:
     rw_vec = np.array([angle_rw, actuation_rw], dtype=np.float32)
     return rw_vec
 
+# APS Specification for Pendulum:
+# 
+# \begin{align}
+# \phi_{\text{pendulum}} = \text{angle} \land_{p=-1.0} \text{actuation}
+# \end{align}
+#
+# This specification represents a conjunction between the angle alignment and 
+# minimal actuation objectives using a power mean with p=-1.0 (harmonic mean).
+# The agent must balance both objectives, with neither being severely sacrificed.
 @tf.function
 def pendulum_composer(q_values, p_batch=0, p_objectives=-4.0):
     qs_batch = tf.transpose(q_values)
