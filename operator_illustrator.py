@@ -171,7 +171,7 @@ class RewardOptimizer:
 
         # Plot objective trajectories with thin lines
         for i in range(self.num_variables):
-            ax.plot([o[i] for o in self.o_history], linewidth=4.0)
+            ax.plot([o[i] for o in self.o_history], linewidth=1.0)
 
         # Remove all decorative elements
         ax.set_xticks([])
