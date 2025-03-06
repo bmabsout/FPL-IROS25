@@ -23,5 +23,6 @@ buildPythonPackage rec {
     rich
     pybox2d
     matplotlib
+    typer
   ];
 }

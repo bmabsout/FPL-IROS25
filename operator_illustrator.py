@@ -157,7 +157,21 @@ class RewardOptimizer:
             self.o_history.append([float(o) for o in outputs])
             self.reward_history.append(float(-reward))
 
-    def plot_results(self, p_value: float, save_path: Optional[str] = None):
+    def plot_results(self, p_value: float, save_path: Optional[str] = None, minimal: bool = True):
+        """
+        Plot optimization results with either minimal or detailed style
+
+        Args:
+            p_value: P-value used in optimization (for filename)
+            save_path: Optional path to save the plot
+            minimal: Whether to use minimal style (True) or detailed style (False)
+        """
+        if minimal:
+            self._plot_minimal(p_value, save_path)
+        else:
+            self._plot_detailed(p_value, save_path)
+
+    def _plot_minimal(self, p_value: float, save_path: Optional[str] = None):
         """
         Plot minimalistic optimization results with zero white space margins
 
@@ -188,14 +202,11 @@ class RewardOptimizer:
         # No grid
         ax.grid(False)
 
-        # Key change #1: Set zero margins
+        # Set zero margins
         plt.margins(0, 0)
 
-        # Key change #2: Extend subplot to figure edges completely
+        # Extend subplot to figure edges completely
         plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-
-        # Key change #3: DO NOT call tight_layout which adds padding
-        # plt.tight_layout()  # Remove this line
 
         # Handle save path creation
         if save_path is None:
@@ -219,85 +230,87 @@ class RewardOptimizer:
         if self.reward_type == "curriculum":
             plt.axvline(x=closest_index, color="black", linestyle="--", linewidth=1.0)
 
-        # Key change #4: Set pad_inches=0 to eliminate all padding during save
+        # Set pad_inches=0 to eliminate all padding during save
         plt.savefig(
             save_path, bbox_inches="tight", pad_inches=0, dpi=300, transparent=False
         )
         plt.close()
 
-    # def plot_results(self, p_value: float, save_path: Optional[str] = None):
-    #     """
-    #     Plot optimization results with outputs and reward on a single axis
+    def _plot_detailed(self, p_value: float, save_path: Optional[str] = None):
+        """
+        Plot detailed optimization results with proper axes, labels, and grid
 
-    #     Args:
-    #         p_value: P-value used in optimization (for plot title)
-    #         save_path: Optional path to save the plot (default: None)
-    #     """
-    #     # Step 1: Initialize the figure with appropriate dimensions
-    #     plt.figure(figsize=(10, 6))
+        Args:
+            p_value: P-value used in optimization (for plot title)
+            save_path: Optional path to save the plot
+        """
+        # Initialize the figure with appropriate dimensions
+        plt.figure(figsize=(10, 6))
 
-    #     # Step 2: Create main axes for unified plotting
-    #     ax = plt.gca()
+        # Create main axes for unified plotting
+        ax = plt.gca()
 
-    #     # Step 3: Plot individual output trajectories
-    #     # Using different line styles for visual distinction
-    #     line_styles = ["-", "--", "-.", ":"]
-    #     for i in range(self.num_variables):
-    #         ax.plot(
-    #             [o[i] for o in self.o_history],
-    #             label=f"Output {i+1}",
-    #             linestyle=line_styles[i % len(line_styles)],
-    #             linewidth=1.5,
-    #         )
+        # Plot individual output trajectories
+        # Using different line styles for visual distinction
+        line_styles = ["-", "--", "-.", ":"]
+        for i in range(self.num_variables):
+            ax.plot(
+                [o[i] for o in self.o_history],
+                label=f"Output {i+1}",
+                linestyle=line_styles[i % len(line_styles)],
+                linewidth=1.5,
+            )
 
-    #     # Step 4: Plot reward trajectory with distinct appearance
-    #     ax.plot(
-    #         self.reward_history, label="Reward", color="red", linewidth=1.7, alpha=0.5
-    #     )
+        # Plot reward trajectory with distinct appearance
+        ax.plot(
+            self.reward_history, label="Reward", color="red", linewidth=1.7, alpha=0.5
+        )
 
-    #     # Step 5: Configure axis labels and limits
-    #     ax.set_xlabel("Gradient Steps")
-    #     ax.set_ylabel("Values")
+        # Configure axis labels and limits
+        ax.set_xlabel("Gradient Steps")
+        ax.set_ylabel("Values")
+        
+        # Set y-axis from 0 to 1 for objectives
+        ax.set_ylim(0, 1)
 
-    #     # Ensure y-axis starts from 0 for proper proportion visualization
-    #     ax.set_ylim(bottom=0)
+        # Add grid for better readability
+        ax.grid(True, alpha=0.3, linestyle="--")
 
-    #     # Step 6: Add grid for better readability
-    #     ax.grid(True, alpha=0.3, linestyle="--")
+        # Create comprehensive title with experiment parameters
+        reward_type_display = self.reward_type.upper()
+        title = (
+            f"{reward_type_display} Optimization\n"
+            f"p={p_value}, slack={self.slack:.2f}, "
+            f"competitiveness={self.competitiveness:.2f}"
+        )
+        plt.title(title)
 
-    #     # Step 7: Create comprehensive title with experiment parameters
-    #     reward_type_display = self.reward_type.upper()
-    #     title = (
-    #         f"{reward_type_display} Optimization\n"
-    #         f"p={p_value}, slack={self.slack:.2f}, "
-    #         f"competitiveness={self.competitiveness:.2f}"
-    #     )
-    #     plt.title(title)
+        # Position legend for optimal visibility
+        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0)
 
-    #     # Step 8: Position legend for optimal visibility
-    #     ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", borderaxespad=0.0)
+        # Adjust layout to prevent label clipping
+        plt.tight_layout()
 
-    #     # Step 9: Adjust layout to prevent label clipping
-    #     plt.tight_layout()
+        # Handle save path creation
+        if save_path is None:
+            if not os.path.exists("results"):
+                os.makedirs("results")
+            if not os.path.exists(f"results/{self.reward_type}"):
+                os.makedirs(f"results/{self.reward_type}")
+            save_path = (
+                f"./results/{self.reward_type}/detailed_{self.reward_type}_"
+                f"p_{p_value}.pdf"
+            )
 
-    #     # Step 10: Handle save path creation and saving
-    #     if save_path is None:
-    #         if not os.path.exists("results"):
-    #             os.makedirs("results")
-    #         if not os.path.exists(f"results/{self.reward_type}"):
-    #             os.makedirs(f"results/{self.reward_type}")
-    #         save_path = (
-    #             f"./results/{self.reward_type}/operator_{self.reward_type}_"
-    #             f"num_variables_{self.num_variables}_"
-    #             f"learning_rate_{self.learning_rate}_"
-    #             f"num_steps_{self.num_steps}_"
-    #             f"p_value_{p_value}_"
-    #             f"slack_{self.slack}_"
-    #             f"competitiveness_{self.competitiveness}_"
-    #             f"randomness_{self.randomness}.pdf"
-    #         )
+        # Plot a vertical line at the place where o[0] is closest to slack/2
+        if self.reward_type == "curriculum":
+            closest_index = np.argmin(
+                np.abs(np.array(self.o_history)[:, 0] - self.slack / 2)
+            )
+            plt.axvline(x=closest_index, color="black", linestyle="--", linewidth=1.0)
 
-    #     plt.savefig(save_path, bbox_inches="tight", dpi=300)
+        plt.savefig(save_path, bbox_inches="tight", dpi=300)
+        plt.close()
 
 
 def main(
@@ -310,6 +323,7 @@ def main(
     competitiveness: float = 0.2,
     randomness: float = 0.01,
     initial_values: Optional[List[float]] = None,
+    minimal_plot: bool = True,
 ):
     """
     Main function to run the optimization experiment
@@ -323,6 +337,7 @@ def main(
         reward_type: Type of reward composer to use ["curriculum", "pmean"] (default: "curriculum")
         competitiveness: amount of competitiveness to use in the objectives (default: 0.2)
         randomness: amount of randomness to use in the initial values (default: 0.01)
+        minimal_plot: Whether to use minimal plotting style (default: True)
     """
     # Select reward composer based on type
     if reward_type == "curriculum":
@@ -358,7 +373,7 @@ def main(
     optimizer.optimize(reward_composer=reward_composer, p_value=p_value)
 
     # Plot results
-    optimizer.plot_results(p_value=p_value)
+    optimizer.plot_results(p_value=p_value, minimal=minimal_plot)
 
 
 def parse_float_list(arg):
@@ -413,9 +428,21 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--initial_values",
-        type=parse_float_list,  # Fixed: Using the custom parser function
+        type=parse_float_list,
         default=None,
         help="Initial values for the variables to optimize (comma-separated list of floats)",
+    )
+    parser.add_argument(
+        "--minimal_plot",
+        action="store_true",
+        default=True,
+        help="Use minimal plotting style (default: True)",
+    )
+    parser.add_argument(
+        "--detailed_plot",
+        action="store_false",
+        dest="minimal_plot",
+        help="Use detailed plotting style with axes, grid, and labels",
     )
 
     args = parser.parse_args()
@@ -431,4 +458,5 @@ if __name__ == "__main__":
         competitiveness=args.competitiveness,
         randomness=args.randomness,
         initial_values=args.initial_values,
+        minimal_plot=args.minimal_plot,
     )

@@ -34,6 +34,7 @@
           in pkgs.mkShell {
               buildInputs = [
                   pkgs.nixgl.nixGLIntel
+                  pkgs.ffmpeg
                   (python.withPackages (p: cmorl.propagatedBuildInputs))
               ];
               shellHook = ''
