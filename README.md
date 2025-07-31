@@ -46,7 +46,7 @@ The main contributions include:
 # Key Concepts
 
 ## Fulfillment Priority Logic (FPL)
-FPL allows practitioners to define logical formulas representing their intentions and priorities within multi-objective reinforcement learning. It uses power mean operators (µp) to smoothly interpolate between minimum (p→-∞) and maximum (p→∞) operations, generalizing linear utilities.
+FPL allows practitioners to define logical formulas representing their intentions and priorities within multi-objective reinforcement learning. It uses power mean operators to smoothly interpolate between minimum (p→-∞) and maximum (p→∞) operations, generalizing linear utilities.
 
 ## FPL Syntax
 ```
