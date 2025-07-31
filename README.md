@@ -43,23 +43,5 @@ The main contributions include:
 
 `python envs/Pendulum/test_pendulum.py -lr training` - test the trained policy
 
-# Key Concepts
-
-## Fulfillment Priority Logic (FPL)
-FPL allows practitioners to define logical formulas representing their intentions and priorities within multi-objective reinforcement learning. It uses power mean operators to smoothly interpolate between minimum (p→-∞) and maximum (p→∞) operations, generalizing linear utilities.
-
-## FPL Syntax
-```
-ϕ ::= f | ϕ ∧p ϕ | ϕ ∨p ϕ | ¬ϕ | [ϕ]δ
-```
-where:
-- `f ∈ [0, 1]` denotes a base fulfillment value
-- `p ≤ 0` in both `∧p` and `∨p` operators controls strictness
-- `¬` denotes logical negation
-- `[ϕ]δ` offsets the priority of ϕ by δ ∈ [-1, 1]
-
-## Balanced Policy Gradient (BPG)
-BPG extends Deep Deterministic Policy Gradient (DDPG) to efficiently optimize policies for Multi-Fulfillment MDPs using FPL specifications. It works with Fulfillment Q-values (FQ-values) that represent the degree to which each objective is fulfilled across time.
-
 # Visualization of power mean operators
 https://www.math3d.org/RkLQMt2Bl
